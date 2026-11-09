@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* L5 Fitness brand: the same colours as the phone app. */
+@theme inline {
+  --color-brand: #c6f432;
+  --color-brand-dark: #9bc41f;
+  --color-ink: #0b0b0d;
+  --color-panel: #111612;
+  --color-card: #151b17;
+  --color-card-2: #232c25;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-muted: #a1aaa0;
+  --color-accent: #ff6b35;
+  --color-sky: #38bdf8;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink);
+  color: #f4f4f5;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A visible focus ring for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(198, 244, 50, 0.3);
+}
+
+/* Keep dense console figures aligned without changing their underlying values. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+html { scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
