@@ -70,7 +70,7 @@ function AccountMenu({ staff, onSignOut }) {
           open ? "border-brand/40 bg-brand/10" : "border-line bg-card hover:border-white/20"
         )}
       >
-        <span className="rounded-full ring-2 ring-brand/40"><Avatar name={name} image={staff.image} size={32} /></span>
+        <span className="flex shrink-0 rounded-full ring-2 ring-brand/40"><Avatar name={name} image={staff.image} size={32} /></span>
         <span className="hidden min-w-0 text-left lg:block">
           <span className="block max-w-36 truncate text-sm font-semibold leading-tight text-white">{name}</span>
           <span className={cx("block text-[11px] font-semibold leading-tight", isAdmin ? "text-brand" : "text-sky")}>{isAdmin ? "Admin" : "Dietitian"}</span>
@@ -118,8 +118,6 @@ function Shell({ staff, children }) {
   const [menuFor, setMenuFor] = useState(null); // the page the mobile menu was opened on
   const menuOpen = menuFor === pathname; // it closes by itself when you go to another page
   const items = NAV.filter((n) => n.roles.includes(staff.role));
-  const here = items.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
-  const isAdmin = staff.role === "admin";
 
   const nav = (
     <nav aria-label="Main" className="flex flex-col gap-1">
@@ -145,7 +143,7 @@ function Shell({ staff, children }) {
 
   // --bar is the height of the top bar, for anything that sticks below it.
   return (
-    <div className={cx("min-h-screen lg:grid lg:grid-cols-[248px_1fr]", isAdmin ? "[--bar:121px] lg:[--bar:69px]" : "[--bar:65px]")}>
+    <div className={cx("min-h-screen lg:grid lg:grid-cols-[248px_1fr]", "[--bar:121px] lg:[--bar:69px]")}>
       <a href="#console-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-brand focus:px-5 focus:py-3 focus:text-ink">Skip to content</a>
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen flex-col gap-6 border-r border-line bg-panel p-5 lg:flex">
@@ -158,11 +156,7 @@ function Shell({ staff, children }) {
         {/* Top bar: brand and menu on a phone, search and shortcuts on a desktop */}
         <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur sm:px-8 lg:bg-ink/85 lg:px-10">
           <div className="lg:hidden"><Brand /></div>
-          {isAdmin ? (
-            <GlobalSearch className="order-last w-full lg:order-none lg:max-w-xl lg:flex-1" />
-          ) : (
-            <p className="hidden text-sm font-semibold text-white lg:block">{here?.label ?? "Workspace"}</p>
-          )}
+          <GlobalSearch role={staff.role} className="order-last w-full lg:order-none lg:max-w-xl lg:flex-1" />
           <div className="ml-auto flex items-center gap-2">
             <AccountMenu staff={staff} onSignOut={signOut} />
             <button

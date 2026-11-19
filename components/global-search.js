@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { Avatar, cx } from "@/components/ui";
+import { fmtKg, GOAL_LABEL } from "@/lib/body";
 
 const LEVEL_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced", all: "All levels" };
 
@@ -75,8 +76,50 @@ function toGroups(data) {
   return groups.filter((g) => g.rows.length);
 }
 
-/** The admin's search box in the top bar: members, dietitians, workouts and classes in one place. */
-export default function GlobalSearch({ className }) {
+/** A dietitian only ever sees the clients assigned to them; the API scopes the list. */
+function toClientGroups(data) {
+  const clients = data?.clients ?? [];
+  if (!clients.length) return [];
+  return [
+    {
+      label: "Your clients",
+      rows: clients.slice(0, 12).map((c) => ({
+        key: `cl-${c.id}`,
+        href: `/clients/${encodeURIComponent(c.id)}`,
+        title: c.name || c.email,
+        detail: [
+          c.name ? c.email : null,
+          GOAL_LABEL[c.goal],
+          c.weightKg && c.targetWeightKg ? `${fmtKg(c.weightKg)} → ${fmtKg(c.targetWeightKg)}` : null,
+          c.planned7 ? `${c.done7}/${c.planned7} done this week` : "No recent plan",
+        ].filter(Boolean).join(" · "),
+        person: c,
+      })),
+    },
+  ];
+}
+
+const MODES = {
+  admin: {
+    path: (q) => `/admin/search?q=${encodeURIComponent(q)}`,
+    toGroups,
+    label: "Search members, dietitians, workouts and classes",
+    placeholder: "Search members, dietitians, workouts…",
+  },
+  dietitian: {
+    path: (q) => `/dietitian/clients?q=${encodeURIComponent(q)}`,
+    toGroups: toClientGroups,
+    label: "Search your clients",
+    placeholder: "Search your clients by name or email…",
+  },
+};
+
+/**
+ * The search box in the top bar. For the admin: members, dietitians, workouts and classes.
+ * For a dietitian: only the clients assigned to them.
+ */
+export default function GlobalSearch({ className, role = "admin" }) {
+  const mode = MODES[role] ?? MODES.admin;
   const router = useRouter();
   const listId = useId();
   const boxRef = useRef(null);
@@ -117,9 +160,9 @@ export default function GlobalSearch({ className }) {
   }, [open]);
 
   const ready = term.length >= 2;
-  const { data, error, reload } = useApi(ready ? `/admin/search?q=${encodeURIComponent(term)}` : null);
+  const { data, error, reload } = useApi(ready ? mode.path(term) : null);
   const waiting = text.trim().length >= 2 && (text.trim() !== term || (!data && !error));
-  const groups = ready && !waiting ? toGroups(data) : [];
+  const groups = ready && !waiting ? mode.toGroups(data) : [];
   const rows = groups.flatMap((g) => g.rows);
   const current = Math.min(active, rows.length - 1);
   const show = open && text.trim().length > 0;
@@ -158,7 +201,7 @@ export default function GlobalSearch({ className }) {
           ref={inputRef}
           type="search"
           role="combobox"
-          aria-label="Search members, dietitians, workouts and classes"
+          aria-label={mode.label}
           aria-expanded={show}
           aria-controls={listId}
           aria-autocomplete="list"
@@ -174,7 +217,7 @@ export default function GlobalSearch({ className }) {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Search members, dietitians, workouts…"
+          placeholder={mode.placeholder}
           className="h-11 w-full rounded-full border border-line bg-card pl-11 pr-16 text-sm text-white placeholder:text-zinc-500 focus:border-brand/60 [&::-webkit-search-cancel-button]:hidden"
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line bg-card-2 px-1.5 py-0.5 font-sans text-[11px] font-semibold text-muted sm:block">Ctrl K</kbd>
