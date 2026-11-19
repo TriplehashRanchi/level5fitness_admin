@@ -9,7 +9,7 @@ App Router) and Tailwind. It talks to `L5Fitness-api` and signs people in with F
 | --- | --- | --- |
 | How they sign in | email + password from the API's `.env` | Google, **only if the admin invited their email** |
 | Dashboard | whole gym | their own clients |
-| Clients: details, weight, workouts | all members who agreed to share | only members assigned to them |
+| Clients: details, weight, workouts | accepted members who agreed to share | accepted clients assigned to them |
 | Post / edit a member's diet plan | yes | their own clients only |
 | Invite, disable, remove dietitians | yes | no |
 | Assign members to dietitians | yes | no |
@@ -47,7 +47,10 @@ The API must be running too (`npm start` in `L5Fitness-api`, port 4000 by defaul
    When that person signs in with that Google account they become a dietitian. Invitations only work for a
    **verified** email, which every Google account has.
 3. **Clients.** In **Members** the admin picks a dietitian for each member. A dietitian sees a member only when
-   the member finished the phone-app setup, agreed to share, and is assigned to them.
+   the member finished the phone-app setup, agreed to share, and the dietitian has accepted them. Unassigned members can also be accepted directly from **Clients → Pending requests**.
+4. **Personal plans.** After acceptance, open the client, choose a date and add diet items and an exercise plan. Diet appears in the member’s Diet tab; exercises and instructions appear on Home. Reload the screen or pull to refresh to see updates.
+
+Apply API migration `011_client_acceptance_training.sql` before deploying this console. Existing assignments require explicit acceptance after this update; no saved plans or workout logs are deleted.
 
 ## Before going live
 

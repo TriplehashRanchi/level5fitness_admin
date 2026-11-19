@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { WEEKDAYS, WEEK_ORDER } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
+import { Count, DataTable, EmptyRow, SearchBox, Pills, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
 import { Alert, Badge, Button, Card, CardTitle, cx, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select } from "@/components/ui";
 
 const LEVEL_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced", all: "All levels" };
@@ -22,6 +23,27 @@ function WorkoutsTab({ catalog, reload, say }) {
   const [form, setForm] = useState(BLANK);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [show, setShow] = useState("all"); // all | live | off
+  const [category, setCategory] = useState("");
+
+  const liveCount = workouts.filter((w) => w.isActive).length;
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return workouts.filter(
+      (w) =>
+        (show === "all" || (show === "live") === w.isActive) &&
+        (!category || w.categorySlug === category) &&
+        (!q || [w.title, w.focus, w.coach, w.categoryName].filter(Boolean).join(" ").toLowerCase().includes(q))
+    );
+  }, [workouts, query, show, category]);
+  const { sorted, column } = useSort(shown, {
+    title: (w) => w.title,
+    category: (w) => w.categoryName,
+    level: (w) => ({ beginner: 0, intermediate: 1, advanced: 2, all: 3 })[w.level],
+    time: (w) => w.durationMin,
+    status: (w) => (w.isActive ? 0 : 1),
+  }, "status");
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const open = (w) => {
@@ -67,49 +89,59 @@ function WorkoutsTab({ catalog, reload, say }) {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><Button onClick={() => open("new")}>+ New workout</Button></div>
       {workouts.length === 0 ? (
-        <EmptyState title="No workouts yet">Add the first workout for members to see.</EmptyState>
+        <EmptyState title="No workouts yet" action={<Button onClick={() => open("new")}>+ New workout</Button>}>Add the first workout for members to see.</EmptyState>
       ) : (
-        <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Workout</th>
-                <th className="px-5 py-3 font-semibold">Category</th>
-                <th className="px-5 py-3 font-semibold">Level</th>
-                <th className="px-5 py-3 font-semibold">Time</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {workouts.map((w) => (
-                <tr key={w.id} className={cx(!w.isActive && "opacity-60")}>
-                  <td className="px-5 py-3">
-                    <p className="font-bold text-white">{w.title}</p>
-                    <p className="text-xs text-muted">{[w.focus, w.coach].filter(Boolean).join(" · ") || "–"}</p>
-                  </td>
-                  <td className="px-5 py-3 text-zinc-300">{w.categoryName}</td>
-                  <td className="px-5 py-3 text-zinc-300">{LEVEL_LABEL[w.level]}</td>
-                  <td className="px-5 py-3 text-zinc-300">{w.durationMin} min<span className="block text-xs text-muted">{w.kcalEstimate} kcal</span></td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {w.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}
-                      {w.isProgram ? <Badge tone="brand">Program</Badge> : null}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => open(w)}>Edit</Button>
-                      <Button variant="ghost" size="sm" onClick={() => toggle(w)}>{w.isActive ? "Switch off" : "Switch on"}</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Workouts"
+          minWidth={860}
+          toolbar={
+            <>
+              <SearchBox value={query} onChange={setQuery} placeholder="Search workouts" />
+              <Pills options={[{ id: "all", label: "All", count: workouts.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: workouts.length - liveCount }]} value={show} onChange={setShow} />
+              <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="!w-auto !rounded-xl !py-2">
+                <option value="">All categories</option>
+                {categories.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+              </Select>
+              <Button className="ml-auto" onClick={() => open("new")}>+ New workout</Button>
+            </>
+          }
+          footer={<Count n={sorted.length} of={workouts.length} noun="workout" />}
+        >
+          <THead>
+            <Th sort={column("title")}>Workout</Th>
+            <Th sort={column("category")}>Category</Th>
+            <Th sort={column("level")}>Level</Th>
+            <Th sort={column("time")}>Time</Th>
+            <Th sort={column("status")}>Status</Th>
+            <Th label="Actions" />
+          </THead>
+          <TBody>
+            {sorted.length === 0 ? (
+              <EmptyRow colSpan={6} title="No workouts in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); setCategory(""); }}>Show all workouts</Button>} />
+            ) : null}
+            {sorted.map((w) => (
+              <Tr key={w.id} dim={!w.isActive}>
+                <Td><TwoLine main={w.title} note={[w.focus, w.coach].filter(Boolean).join(" · ") || null} /></Td>
+                <Td nowrap>{w.categoryName}</Td>
+                <Td nowrap>{LEVEL_LABEL[w.level]}</Td>
+                <Td nowrap><TwoLine main={`${w.durationMin} min`} note={`${w.kcalEstimate} kcal`} /></Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    {w.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}
+                    {w.isProgram ? <Badge tone="brand">Program</Badge> : null}
+                  </div>
+                </Td>
+                <Td align="right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => open(w)}>Edit</Button>
+                    <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(w)}>{w.isActive ? "Switch off" : "Switch on"}</Button>
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+          </TBody>
+        </DataTable>
       )}
 
       <Modal
@@ -231,14 +263,20 @@ function CategoriesTab({ catalog, reload, say }) {
         <div className="min-w-56 flex-1"><Field label="New category"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pilates" maxLength={40} /></Field></div>
         <Button type="submit" loading={busy} className="mb-[22px]">Add</Button>
       </form>
-      <ul className="divide-y divide-line">
-        {catalog.categories.map((c) => (
-          <li key={c.slug} className="flex items-center justify-between py-3 text-sm">
-            <span className="font-semibold text-white">{c.name}</span>
-            <span className="text-muted">{counts[c.slug] ?? 0} workout{(counts[c.slug] ?? 0) === 1 ? "" : "s"}</span>
-          </li>
-        ))}
-      </ul>
+      <DataTable label="Categories" minWidth={320} footer={<span>{catalog.categories.length} {catalog.categories.length === 1 ? "category" : "categories"}</span>}>
+        <THead>
+          <Th>Category</Th>
+          <Th align="right">Workouts</Th>
+        </THead>
+        <TBody>
+          {catalog.categories.map((c) => (
+            <Tr key={c.slug}>
+              <Td><span className="font-semibold text-white">{c.name}</span></Td>
+              <Td align="right"><span className="tabular-nums">{counts[c.slug] ?? 0}</span></Td>
+            </Tr>
+          ))}
+        </TBody>
+      </DataTable>
     </Card>
   );
 }

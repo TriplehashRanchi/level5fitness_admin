@@ -12,6 +12,9 @@
   --color-muted: #a1aaa0;
   --color-accent: #ff6b35;
   --color-sky: #38bdf8;
+  --color-good: #34d399;
+  --color-warn: #fbbf24;
+  --color-card-3: #2c372e;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -33,6 +36,29 @@ body {
   outline-offset: 2px;
 }
 
+/* Anything you can click shows the hand cursor; anything switched off shows that it is. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [role="switch"]:not(:disabled),
+  select:not(:disabled),
+  summary,
+  label:has(input[type="checkbox"], input[type="radio"]),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+}
+
 ::selection {
   background: rgba(198, 244, 50, 0.3);
 }
@@ -43,3 +69,15 @@ html { scroll-padding-top: 24px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Loading placeholders: a slow shimmer that stands still for people who prefer less motion. */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-card-2) 25%, var(--color-card-3) 50%, var(--color-card-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Horizontal pill bars scroll without a visible scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

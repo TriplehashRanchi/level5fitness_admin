@@ -1,26 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { adherencePercent, fmtKg, GOAL_LABEL } from "@/lib/body";
 import { timeAgo } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
-import { Alert, Avatar, Badge, Button, cx, EmptyState, Input, PageHeader, PageSpinner, Select } from "@/components/ui";
+import { Count, DataTable, EmptyRow, MeterCell, Pagination, PersonCell, Pills, SearchBox, TBody, Td, Th, THead, Tr, TwoLine } from "@/components/table";
+import { Alert, Badge, Button, cx, PageHeader, PageSpinner } from "@/components/ui";
 
 const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "unassigned", label: "No dietitian" },
+  { id: "unassigned", label: "Unassigned" },
   { id: "assigned", label: "Assigned" },
+  { id: "all", label: "All" },
 ];
 
-function Members() {
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+/** The dietitian picker as a small pill: dashed and amber while nobody is assigned. */
+function AssignSelect({ label, value, onChange, disabled, children }) {
+  return (
+    <span className="relative inline-block">
+      <select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={cx(
+          "h-9 w-48 appearance-none truncate rounded-full border bg-transparent pl-3.5 pr-8 text-xs font-semibold transition-colors disabled:opacity-50",
+          value ? "border-line text-white hover:border-white/25" : "border-dashed border-warn/50 text-warn hover:border-warn"
+        )}
+      >
+        {children}
+      </select>
+      <svg className={cx("pointer-events-none absolute right-3 top-1/2 -translate-y-1/2", value ? "text-muted" : "text-warn")} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+    </span>
+  );
+}
+
+function Members({ initialQuery }) {
+  const [query, setQuery] = useState(initialQuery);
+  const [search, setSearch] = useState(initialQuery);
+  // Coming from the top bar's search: look in everybody, not only the unassigned.
+  const [filter, setFilter] = useState(initialQuery ? "all" : "unassigned");
   const [page, setPage] = useState(1);
   const [savingId, setSavingId] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [targetId, setTargetId] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -52,127 +87,173 @@ function Members() {
     }
   };
 
-  const data = members.data;
+  // While a new search or page loads, the rows already on screen stay there.
+  const data = members.data ?? members.latest;
+  const pageIds = data ? data.members.map((m) => m.id) : [];
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const toggleOne = (id) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of pageIds) {
+        if (allOnPage) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+
+  const bulkAssign = async () => {
+    if (!targetId || selected.size === 0) return;
+    setBulkBusy(true);
+    setToast(null);
+    try {
+      const res = await api("/admin/assignments/bulk", { method: "POST", body: { dietitianId: targetId, memberIds: [...selected] } });
+      const who = available.find((d) => d.id === targetId);
+      setToast({ tone: "good", text: `Assigned ${res.assigned} to ${who?.name || who?.email || "the dietitian"}${res.skipped ? `, skipped ${res.skipped}` : ""}.` });
+      setSelected(new Set());
+      setTargetId("");
+    } catch (e) {
+      setToast({ tone: "bad", text: messageOf(e) });
+    } finally {
+      setBulkBusy(false);
+      members.reload();
+      dietitians.reload();
+    }
+  };
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
     <>
-      <PageHeader title="Members" subtitle="Everyone using the app. Assign each member to the dietitian who looks after them." />
-
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="min-w-64 max-w-md flex-1">
-          <Input type="search" placeholder="Search by name or email" aria-label="Search members" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-        <div className="flex gap-1 rounded-full bg-card p-1" role="group" aria-label="Filter">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={filter === f.id}
-              onClick={() => { setFilter(f.id); setPage(1); }}
-              className={cx("rounded-full px-4 py-1.5 text-sm font-semibold transition", filter === f.id ? "bg-brand text-ink" : "text-muted hover:text-white")}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader title="Members" subtitle="Everyone using the app. Give each member a dietitian; it takes effect at once." />
 
       {notice ? <div className="mb-4"><Alert tone={notice.tone === "good" ? "good" : "bad"}>{notice.text}</Alert></div> : null}
-      {members.error ? <Alert>{messageOf(members.error)}</Alert> : null}
+      {members.error ? <div className="mb-4"><Alert action={<Button variant="secondary" size="sm" onClick={members.reload}>Retry</Button>}>{messageOf(members.error)}</Alert></div> : null}
       {!data && !members.error ? <PageSpinner /> : null}
-      {data && data.members.length === 0 ? <EmptyState title="No members found">Try another search or filter.</EmptyState> : null}
 
-      {data && data.members.length > 0 ? (
-        <>
-          <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Member</th>
-                  <th className="px-5 py-3 font-semibold">Goal</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold">This week</th>
-                  <th className="px-5 py-3 font-semibold">Dietitian</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {data.members.map((m) => {
-                  const percent = adherencePercent(m.done7, m.planned7);
-                  return (
-                    <tr key={m.id}>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={m.name || m.email} image={m.image} />
-                          <div className="min-w-0">
-                            <p className="truncate font-bold text-white">{m.name || m.email}</p>
-                            <p className="truncate text-xs text-muted">{m.email} · seen {timeAgo(m.lastSeenAt)}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-zinc-300">
-                        {m.setupDone ? (
-                          <>
-                            <span className="block font-semibold">{GOAL_LABEL[m.goal]}</span>
-                            <span className="text-xs text-muted">{fmtKg(m.weightKg)} → {fmtKg(m.targetWeightKg)}</span>
-                          </>
-                        ) : (
-                          <span className="text-muted">–</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        {!m.setupDone ? <Badge tone="warn">Setup not done</Badge> : m.sharing ? <Badge tone="good">Sharing</Badge> : <Badge tone="neutral">Not sharing</Badge>}
-                      </td>
-                      <td className="px-5 py-3 text-xs text-zinc-300">
-                        {m.workouts7} workout{m.workouts7 === 1 ? "" : "s"}
-                        <br />
-                        <span className="text-muted">{percent == null ? "no diet plan" : `diet ${percent}%`}</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <Select
-                            aria-label={`Dietitian for ${m.name || m.email}`}
-                            value={m.dietitianId ?? ""}
-                            disabled={savingId === m.id || !dietitians.data}
-                            onChange={(e) => assign(m, e.target.value)}
-                            className="min-w-44"
-                          >
-                            <option value="">No dietitian</option>
-                            {available.map((d) => (
-                              <option key={d.id} value={d.id}>{d.name || d.email}</option>
-                            ))}
-                            {/* keep showing a disabled dietitian who is still assigned */}
-                            {m.dietitianId && !available.some((d) => d.id === m.dietitianId) ? (
-                              <option value={m.dietitianId}>{m.dietitianName || m.dietitianEmail} (disabled)</option>
-                            ) : null}
-                          </Select>
-                        </div>
-                        {m.dietitianId === null && m.setupDone && m.sharing ? <p className="mt-1 text-[11px] text-amber-300">Waiting for a dietitian</p> : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex items-center justify-between text-sm text-muted">
-            <span>{data.total} member{data.total === 1 ? "" : "s"}</span>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-              <span>Page {page} of {pages}</span>
-              <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
-            </div>
-          </div>
-        </>
+      {data ? (
+        <DataTable
+          label="Members"
+          minWidth={980}
+          toolbar={
+            <>
+              <SearchBox value={query} onChange={setQuery} placeholder="Search by name or email" label="Search members" />
+              <Pills options={FILTERS} value={filter} onChange={(id) => { setFilter(id); setPage(1); }} />
+              {members.refreshing ? <span className="text-xs text-muted" role="status">Loading…</span> : null}
+            </>
+          }
+          footer={
+            <>
+              <Count n={data.total} noun="member" />
+              <Pagination page={page} pages={pages} onPage={setPage} />
+            </>
+          }
+        >
+          <THead>
+            <Th className="w-10">
+              <input type="checkbox" aria-label="Select all on this page" checked={allOnPage} onChange={toggleAll} disabled={pageIds.length === 0} className="h-4 w-4 accent-brand" />
+            </Th>
+            <Th>Member</Th>
+            <Th>Profile</Th>
+            <Th>Last 7 days</Th>
+            <Th>Diet plan</Th>
+            <Th>Dietitian</Th>
+            <Th label="Open" />
+          </THead>
+          <TBody>
+            {data.members.length === 0 ? (
+              <EmptyRow
+                colSpan={7}
+                title="No members found"
+                action={search || filter !== "all" ? <Button variant="secondary" size="sm" onClick={() => { setQuery(""); setFilter("all"); setPage(1); }}>Show all members</Button> : null}
+              >
+                {search ? `Nobody matches “${search}” in this view.` : filter === "unassigned" ? "Everyone has a dietitian." : "Try another filter."}
+              </EmptyRow>
+            ) : null}
+            {data.members.map((m) => {
+              const percent = adherencePercent(m.done7, m.planned7);
+              // The client page opens only for a member who shares their profile and has a dietitian.
+              const href = m.sharing && m.dietitianId && m.acceptedAt ? `/clients/${encodeURIComponent(m.id)}` : null;
+              return (
+                <Tr key={m.id} selected={selected.has(m.id)}>
+                  <Td>
+                    <input type="checkbox" aria-label={`Select ${m.name || m.email}`} checked={selected.has(m.id)} onChange={() => toggleOne(m.id)} className="h-4 w-4 accent-brand" />
+                  </Td>
+                  <Td><PersonCell name={m.name} email={m.email} image={m.image} href={href} /></Td>
+                  <Td nowrap>
+                    {!m.setupDone ? <Badge tone="warn">Not set up</Badge> : m.sharing ? <TwoLine main={GOAL_LABEL[m.goal]} note={`${fmtKg(m.weightKg)} → ${fmtKg(m.targetWeightKg)}`} /> : <Badge tone="neutral">Not sharing</Badge>}
+                  </Td>
+                  <Td nowrap><TwoLine main={`${m.workouts7} workout${m.workouts7 === 1 ? "" : "s"}`} note={`Seen ${timeAgo(m.lastSeenAt)}`} /></Td>
+                  <Td>{percent == null ? <span className="text-xs text-muted">No plan</span> : <MeterCell percent={percent} note={`${m.done7}/${m.planned7}`} tone={percent >= 70 ? "bg-good" : "bg-accent"} label="Diet plan followed" />}</Td>
+                  <Td>
+                    <AssignSelect
+                      label={`Dietitian for ${m.name || m.email}`}
+                      value={m.dietitianId ?? ""}
+                      disabled={savingId === m.id || !dietitians.data}
+                      onChange={(id) => assign(m, id)}
+                    >
+                      <option value="">{m.dietitianId ? "Remove dietitian" : "Assign dietitian"}</option>
+                      {available.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name || d.email} ({d.clients})</option>
+                      ))}
+                      {/* keep showing a disabled dietitian who is still assigned */}
+                      {m.dietitianId && !available.some((d) => d.id === m.dietitianId) ? (
+                        <option value={m.dietitianId}>{m.dietitianName || m.dietitianEmail} (disabled)</option>
+                      ) : null}
+                    </AssignSelect>
+                  </Td>
+                  <Td align="right">
+                    {href ? (
+                      <Link href={href} aria-label={`Open ${m.name || m.email}`} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-brand/10 hover:text-brand">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                      </Link>
+                    ) : null}
+                  </Td>
+                </Tr>
+              );
+            })}
+          </TBody>
+        </DataTable>
+      ) : null}
+
+      {selected.size > 0 ? (
+        <div className="sticky bottom-5 z-20 mx-auto mt-5 flex w-fit max-w-full flex-wrap items-center gap-3 rounded-2xl border border-brand/30 bg-panel px-4 py-3 shadow-2xl shadow-black/60">
+          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold tabular-nums text-ink">{selected.size}</span>
+            selected
+          </span>
+          <AssignSelect label="Dietitian to assign to" value={targetId} onChange={setTargetId} disabled={bulkBusy}>
+            <option value="">Choose a dietitian</option>
+            {available.map((d) => (
+              <option key={d.id} value={d.id}>{d.name || d.email} ({d.clients} client{d.clients === 1 ? "" : "s"})</option>
+            ))}
+          </AssignSelect>
+          <Button size="sm" onClick={bulkAssign} loading={bulkBusy} disabled={!targetId || selected.size > 100}>Assign</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={bulkBusy}>Clear</Button>
+          {selected.size > 100 ? <span className="text-xs text-amber-300">Up to 100 at a time.</span> : null}
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm" role="status">
+          <Alert tone={toast.tone}>{toast.text}</Alert>
+        </div>
       ) : null}
     </>
   );
 }
 
 export default function MembersPage() {
+  // /members?q=… is where the top bar's search sends a member who has no client page yet.
+  const q = (useSearchParams().get("q") ?? "").trim().slice(0, 60);
   return (
     <AdminOnly>
-      <Members />
+      <Members key={q} initialQuery={q} />
     </AdminOnly>
   );
 }

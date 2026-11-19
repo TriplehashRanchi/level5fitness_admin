@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { WEEKDAYS, WEEK_ORDER } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
+import { Count, DataTable, EmptyRow, Pills, SearchBox, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
 import { Alert, Badge, Button, cx, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select } from "@/components/ui";
 
 const BLANK = { name: "", trainer: "", icon: "bolt", weekdays: [1, 2, 3, 4, 5], startTime: "06:30", durationMin: "45", capacity: "20", isActive: true };
@@ -30,6 +31,23 @@ function Classes() {
   const [formError, setFormError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [query, setQuery] = useState("");
+  const [show, setShow] = useState("all"); // all | live | off
+
+  const liveCount = data ? data.classes.filter((c) => c.isActive).length : 0;
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (data?.classes ?? []).filter(
+      (c) => (show === "all" || (show === "live") === c.isActive) && (!q || `${c.name} ${c.trainer ?? ""}`.toLowerCase().includes(q))
+    );
+  }, [data, query, show]);
+  const { sorted, column } = useSort(shown, {
+    name: (c) => c.name,
+    days: (c) => c.weekdays.length,
+    time: (c) => c.startTime,
+    places: (c) => c.capacity,
+    status: (c) => (c.isActive ? 0 : 1),
+  }, "time");
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const open = (c) => {
@@ -73,43 +91,53 @@ function Classes() {
 
   return (
     <>
-      <PageHeader title="Classes" subtitle="The weekly timetable. Times are the gym’s local time. Members book a place for each date." actions={<Button onClick={() => open("new")}>+ New class</Button>} />
+      <PageHeader title="Classes" subtitle="The weekly timetable. Times are the gym’s local time. Members book a place for each date." />
       {notice ? <div className="mb-4"><Alert tone={notice.tone === "good" ? "good" : "bad"}>{notice.text}</Alert></div> : null}
       {error ? <Alert>{messageOf(error)}</Alert> : null}
       {!data && !error ? <PageSpinner /> : null}
-      {data && data.classes.length === 0 ? <EmptyState title="No classes yet">Add the first class to the timetable.</EmptyState> : null}
+      {data && data.classes.length === 0 ? <EmptyState title="No classes yet" action={<Button onClick={() => open("new")}>+ New class</Button>}>Add the first class to the timetable.</EmptyState> : null}
       {data && data.classes.length > 0 ? (
-        <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Class</th>
-                <th className="px-5 py-3 font-semibold">Days</th>
-                <th className="px-5 py-3 font-semibold">Time</th>
-                <th className="px-5 py-3 font-semibold">Places</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {data.classes.map((c) => (
-                <tr key={c.id} className={cx(!c.isActive && "opacity-60")}>
-                  <td className="px-5 py-3"><p className="font-bold text-white">{c.name}</p><p className="text-xs text-muted">{c.trainer}</p></td>
-                  <td className="px-5 py-3 text-zinc-300">{daysText(c.weekdays)}</td>
-                  <td className="px-5 py-3 text-zinc-300">{c.startTime}<span className="block text-xs text-muted">{c.durationMin} min</span></td>
-                  <td className="px-5 py-3 text-zinc-300">{c.capacity}</td>
-                  <td className="px-5 py-3">{c.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}</td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => open(c)}>Edit</Button>
-                      <Button variant="ghost" size="sm" onClick={() => toggle(c)}>{c.isActive ? "Switch off" : "Switch on"}</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Classes"
+          minWidth={820}
+          toolbar={
+            <>
+              <SearchBox value={query} onChange={setQuery} placeholder="Search by class or trainer" label="Search classes" />
+              <Pills options={[{ id: "all", label: "All", count: data.classes.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: data.classes.length - liveCount }]} value={show} onChange={setShow} />
+              <Button className="ml-auto" onClick={() => open("new")}>+ New class</Button>
+            </>
+          }
+          footer={<Count n={sorted.length} of={data.classes.length} noun="class" plural="classes" />}
+        >
+          <THead>
+            <Th sort={column("name")}>Class</Th>
+            <Th sort={column("days")}>Days</Th>
+            <Th sort={column("time")}>Time</Th>
+            <Th sort={column("places")} align="right">Places</Th>
+            <Th sort={column("status")}>Status</Th>
+            <Th label="Actions" />
+          </THead>
+          <TBody>
+            {sorted.length === 0 ? (
+              <EmptyRow colSpan={6} title="No classes in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all classes</Button>} />
+            ) : null}
+            {sorted.map((c) => (
+              <Tr key={c.id} dim={!c.isActive}>
+                <Td><TwoLine main={c.name} note={c.trainer} /></Td>
+                <Td nowrap>{daysText(c.weekdays)}</Td>
+                <Td nowrap><TwoLine main={c.startTime} note={`${c.durationMin} min`} /></Td>
+                <Td align="right"><span className="tabular-nums">{c.capacity}</span></Td>
+                <Td>{c.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}</Td>
+                <Td align="right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => open(c)}>Edit</Button>
+                    <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(c)}>{c.isActive ? "Switch off" : "Switch on"}</Button>
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+          </TBody>
+        </DataTable>
       ) : null}
 
       <Modal

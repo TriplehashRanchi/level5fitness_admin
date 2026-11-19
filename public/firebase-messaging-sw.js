@@ -17,14 +17,14 @@ self.addEventListener("push", (event) => {
       body: d.body || "",
       icon: "/favicon.ico",
       tag: d.notificationId || undefined,
-      data: { url: "/notifications" },
+      data: { url: "/clients" },
     })
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL((event.notification.data && event.notification.data.url) || "/notifications", self.location.origin).href;
+  const url = new URL((event.notification.data && event.notification.data.url) || "/clients", self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       for (const client of windows) {

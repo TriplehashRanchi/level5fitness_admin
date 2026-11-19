@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { fmtDateTime, timeAgo } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
-import { Alert, Avatar, Badge, Button, Card, CardTitle, ConfirmDialog, EmptyState, Field, Input, PageHeader, PageSpinner } from "@/components/ui";
+import { Count, DataTable, EmptyRow, MeterCell, PersonCell, Pills, SearchBox, TBody, Td, Th, THead, Tr, useSort } from "@/components/table";
+import { Alert, Button, ConfirmDialog, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select, Switch } from "@/components/ui";
+
+// About how many clients one dietitian looks after. The bar turns amber above this.
+const CLIENT_LIMIT = 20;
 
 function Dietitians() {
   const { data, error, reload } = useApi("/admin/dietitians");
@@ -13,6 +17,26 @@ function Dietitians() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [confirm, setConfirm] = useState(null); // { kind: 'remove' | 'revoke', target }
+  const [moveTo, setMoveTo] = useState("");
+  const [moveError, setMoveError] = useState(null);
+  const [query, setQuery] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState(null);
+  const [show, setShow] = useState("all"); // all | active | disabled
+
+  const activeCount = data ? data.dietitians.filter((d) => !d.disabled).length : 0;
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (data?.dietitians ?? []).filter(
+      (d) => (show === "all" || (show === "disabled") === d.disabled) && (!q || `${d.name ?? ""} ${d.email}`.toLowerCase().includes(q))
+    );
+  }, [data, query, show]);
+  const { sorted, column } = useSort(shown, {
+    name: (d) => d.name || d.email,
+    status: (d) => (d.disabled ? 1 : 0),
+    clients: (d) => d.clients,
+    seen: (d) => (d.lastSeenAt ? -Date.parse(d.lastSeenAt) : null),
+  }, "name");
 
   const act = async (fn, okText) => {
     setBusy(true);
@@ -29,13 +53,45 @@ function Dietitians() {
     }
   };
 
-  const invite = (e) => {
+  const openRemove = (d) => {
+    setMoveTo("");
+    setMoveError(null);
+    setConfirm({ kind: "remove", target: d });
+  };
+
+  const removeWithMove = async () => {
+    const d = confirm.target;
+    setBusy(true);
+    setMoveError(null);
+    try {
+      const q = d.clients > 0 ? `?reassignTo=${encodeURIComponent(moveTo)}` : "";
+      await api(`/admin/dietitians/${encodeURIComponent(d.id)}${q}`, { method: "DELETE" });
+      setNotice({ tone: "good", text: d.clients > 0 ? `Dietitian removed. ${d.clients} client${d.clients === 1 ? "" : "s"} moved.` : "Dietitian removed." });
+      setConfirm(null);
+      reload();
+    } catch (e) {
+      if (e?.code === "HAS_CLIENTS") {
+        // The count changed since this page loaded: refresh and ask again.
+        setMoveError(`${messageOf(e)} Choose who should take them.`);
+        reload();
+        setConfirm((c) => (c && (c.target.clients ?? 0) === 0 ? { ...c, target: { ...c.target, clients: Math.max(1, c.target.clients ?? 0) } } : c));
+      } else {
+        setMoveError(messageOf(e));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const invite = async (e) => {
     e.preventDefault();
     const address = email.trim();
     if (!address) return;
-    act(async () => {
+    setBusy(true);
+    setInviteError(null);
+    try {
       const res = await api("/admin/dietitians", { method: "POST", body: { email: address } });
-      setEmail("");
+      setInviting(false);
       setNotice({
         tone: "good",
         text:
@@ -43,7 +99,18 @@ function Dietitians() {
             ? `${res.email} is now a dietitian.`
             : `Invitation saved. ${res.email} becomes a dietitian the first time they sign in with that Google account.`,
       });
-    });
+      reload();
+    } catch (err) {
+      setInviteError(messageOf(err)); // shown inside the dialog, which stays open
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openInvite = () => {
+    setEmail("");
+    setInviteError(null);
+    setInviting(true);
   };
 
   const toggle = (d) =>
@@ -51,107 +118,162 @@ function Dietitians() {
 
   return (
     <>
-      <PageHeader title="Dietitians" subtitle="Dietitians sign in with Google, but only after you invite their email address." />
+      <PageHeader
+        title="Dietitians"
+        subtitle="Your team. A dietitian signs in with Google, after you invite their email address."
+        actions={<Button onClick={openInvite}>+ Invite dietitian</Button>}
+      />
 
-      <Card>
-        <CardTitle>Invite a dietitian</CardTitle>
-        <form onSubmit={invite} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-64 flex-1">
-            <Field label="Google email address" hint="They must sign in with exactly this Google account.">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dietitian@gmail.com" required />
-            </Field>
-          </div>
-          <Button type="submit" loading={busy} className="mb-[22px]">Send invitation</Button>
-        </form>
-      </Card>
-
-      {notice ? <div className="mt-4"><Alert tone={notice.tone === "good" ? "good" : "bad"}>{notice.text}</Alert></div> : null}
-      {error ? <div className="mt-4"><Alert>{messageOf(error)}</Alert></div> : null}
+      {notice ? <div className="mb-4"><Alert tone={notice.tone === "good" ? "good" : "bad"}>{notice.text}</Alert></div> : null}
+      {error ? <div className="mb-4"><Alert action={<Button variant="secondary" size="sm" onClick={reload}>Retry</Button>}>{messageOf(error)}</Alert></div> : null}
       {!data && !error ? <PageSpinner /> : null}
 
       {data ? (
         <>
-          <Card className="mt-6">
-            <CardTitle>Dietitians</CardTitle>
-            {data.dietitians.length === 0 ? (
-              <EmptyState title="No dietitians yet">Invite one above. They appear here after their first sign-in.</EmptyState>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="border-b border-line text-xs uppercase tracking-wider text-muted">
-                    <tr>
-                      <th className="py-3 pr-4 font-semibold">Dietitian</th>
-                      <th className="py-3 pr-4 font-semibold">Status</th>
-                      <th className="py-3 pr-4 font-semibold">Clients</th>
-                      <th className="py-3 pr-4 font-semibold">Last seen</th>
-                      <th className="py-3 font-semibold"><span className="sr-only">Actions</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {data.dietitians.map((d) => (
-                      <tr key={d.id}>
-                        <td className="py-3 pr-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar name={d.name || d.email} image={d.image} />
-                            <div className="min-w-0">
-                              <p className="truncate font-bold text-white">{d.name || d.email}</p>
-                              <p className="truncate text-xs text-muted">{d.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4">{d.disabled ? <Badge tone="bad">Disabled</Badge> : <Badge tone="good">Active</Badge>}</td>
-                        <td className="py-3 pr-4 text-zinc-300">{d.clients}</td>
-                        <td className="py-3 pr-4 text-muted">{timeAgo(d.lastSeenAt)}</td>
-                        <td className="py-3 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => toggle(d)} disabled={busy}>{d.disabled ? "Enable" : "Disable"}</Button>
-                            <Button variant="danger" size="sm" onClick={() => setConfirm({ kind: "remove", target: d })} disabled={busy}>Remove</Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-
-          <Card className="mt-6">
-            <CardTitle>Pending invitations</CardTitle>
-            {data.invites.length === 0 ? (
-              <p className="text-sm text-muted">No invitations waiting.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {data.invites.map((i) => (
-                  <li key={i.email} className="flex items-center justify-between gap-3 py-3">
-                    <div>
-                      <p className="text-sm font-bold text-white">{i.email}</p>
-                      <p className="text-xs text-muted">Invited {fmtDateTime(i.invitedAt)} · waiting for their first Google sign-in</p>
-                    </div>
-                    <Button variant="secondary" size="sm" onClick={() => setConfirm({ kind: "revoke", target: i })} disabled={busy}>Revoke</Button>
-                  </li>
+          {data.dietitians.length === 0 ? (
+            <EmptyState title="No dietitians yet" action={<Button onClick={openInvite}>+ Invite dietitian</Button>}>They appear here after their first sign-in.</EmptyState>
+          ) : (
+            <DataTable
+              label="Dietitians"
+              minWidth={680}
+              toolbar={
+                <>
+                  <SearchBox value={query} onChange={setQuery} placeholder="Search by name or email" label="Search dietitians" />
+                  <Pills options={[{ id: "all", label: "All", count: data.dietitians.length }, { id: "active", label: "Active", count: activeCount }, { id: "disabled", label: "Disabled", count: data.dietitians.length - activeCount }]} value={show} onChange={setShow} />
+                </>
+              }
+              footer={<Count n={sorted.length} of={data.dietitians.length} noun="dietitian" />}
+            >
+              <THead>
+                <Th sort={column("name")}>Dietitian</Th>
+                <Th sort={column("clients")}>Clients</Th>
+                <Th sort={column("seen")}>Last seen</Th>
+                <Th sort={column("status")}>Can sign in</Th>
+                <Th label="Remove" />
+              </THead>
+              <TBody>
+                {sorted.length === 0 ? (
+                  <EmptyRow colSpan={5} title="No dietitians in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all</Button>} />
+                ) : null}
+                {sorted.map((d) => (
+                  <Tr key={d.id}>
+                    <Td><div className={d.disabled ? "opacity-55" : undefined}><PersonCell name={d.name} email={d.email} image={d.image} /></div></Td>
+                    <Td>
+                      <MeterCell
+                        percent={(d.clients / CLIENT_LIMIT) * 100}
+                        text={`${d.clients} / ${CLIENT_LIMIT}`}
+                        tone={d.clients > CLIENT_LIMIT ? "bg-warn" : "bg-brand"}
+                        label={`${d.clients} clients, of about ${CLIENT_LIMIT}`}
+                      />
+                    </Td>
+                    <Td muted nowrap>{timeAgo(d.lastSeenAt)}</Td>
+                    <Td>
+                      <div className="flex items-center gap-3">
+                        <Switch checked={!d.disabled} onChange={() => toggle(d)} disabled={busy} label={`${d.name || d.email} can sign in`} />
+                        <span className={d.disabled ? "text-xs font-semibold text-accent" : "text-xs text-muted"}>{d.disabled ? "Disabled" : "Active"}</span>
+                      </div>
+                    </Td>
+                    <Td align="right">
+                      <button
+                        type="button"
+                        onClick={() => openRemove(d)}
+                        disabled={busy}
+                        aria-label={`Remove ${d.name || d.email}`}
+                        title="Remove"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-accent/10 hover:text-accent disabled:opacity-40"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
+                      </button>
+                    </Td>
+                  </Tr>
                 ))}
-              </ul>
-            )}
-          </Card>
+              </TBody>
+            </DataTable>
+          )}
+
+          {data.invites.length === 0 ? null : (
+            <>
+            <h2 className="mb-3 mt-8 text-base font-semibold text-white">Invited, not signed in yet</h2>
+            <DataTable label="Pending invitations" minWidth={520} footer={<Count n={data.invites.length} noun="invitation" />}>
+              <THead>
+                <Th>Email</Th>
+                <Th>Invited</Th>
+                <Th label="Actions" />
+              </THead>
+              <TBody>
+                {data.invites.map((i) => (
+                  <Tr key={i.email}>
+                    <Td><span className="font-semibold text-white">{i.email}</span></Td>
+                    <Td muted nowrap>{fmtDateTime(i.invitedAt)}</Td>
+                    <Td align="right"><Button variant="secondary" size="sm" onClick={() => setConfirm({ kind: "revoke", target: i })} disabled={busy}>Revoke</Button></Td>
+                  </Tr>
+                ))}
+              </TBody>
+            </DataTable>
+            </>
+          )}
         </>
       ) : null}
 
+      <Modal
+        open={inviting}
+        onClose={() => !busy && setInviting(false)}
+        title="Invite a dietitian"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setInviting(false)} disabled={busy}>Cancel</Button>
+            <Button type="submit" form="invite-form" loading={busy}>Send invitation</Button>
+          </>
+        }
+      >
+        <form id="invite-form" onSubmit={invite} className="space-y-4">
+          {inviteError ? <Alert>{inviteError}</Alert> : null}
+          <Field label="Google email address" hint="They must sign in with exactly this Google account.">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dietitian@gmail.com" required autoFocus={inviting} />
+          </Field>
+        </form>
+      </Modal>
+
+      <Modal
+        open={confirm?.kind === "remove"}
+        onClose={() => !busy && setConfirm(null)}
+        title="Remove this dietitian?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirm(null)} disabled={busy}>Cancel</Button>
+            <Button variant="danger" onClick={removeWithMove} loading={busy} disabled={confirm?.target?.clients > 0 && !moveTo}>Remove</Button>
+          </>
+        }
+      >
+        {confirm?.kind === "remove" ? (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-muted">
+              {confirm.target.name || confirm.target.email} will lose access to the console and become a normal member. Diet plans they posted stay.
+            </p>
+            {confirm.target.clients > 0 ? (
+              <Field label={`Move ${confirm.target.clients} client${confirm.target.clients === 1 ? "" : "s"} to:`}>
+                <Select aria-label="Move clients to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} disabled={busy} required>
+                  <option value="">Choose a dietitian</option>
+                  {data?.dietitians
+                    .filter((o) => o.id !== confirm.target.id && !o.disabled)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>{o.name || o.email} ({o.clients} client{o.clients === 1 ? "" : "s"})</option>
+                    ))}
+                </Select>
+              </Field>
+            ) : null}
+            {moveError ? <Alert>{moveError}</Alert> : null}
+          </div>
+        ) : null}
+      </Modal>
+
       <ConfirmDialog
-        open={confirm !== null}
-        title={confirm?.kind === "remove" ? "Remove this dietitian?" : "Revoke this invitation?"}
-        message={
-          confirm?.kind === "remove"
-            ? `${confirm.target.name || confirm.target.email} will lose access to the console. Their ${confirm.target.clients} client${confirm.target.clients === 1 ? "" : "s"} will become unassigned. Diet plans they posted stay.`
-            : confirm ? `${confirm.target.email} will no longer be able to become a dietitian with this invitation.` : ""
-        }
-        confirmLabel={confirm?.kind === "remove" ? "Remove" : "Revoke"}
+        open={confirm?.kind === "revoke"}
+        title="Revoke this invitation?"
+        message={confirm ? `${confirm.target.email} will no longer be able to become a dietitian with this invitation.` : ""}
+        confirmLabel="Revoke"
         busy={busy}
-        onConfirm={() =>
-          confirm.kind === "remove"
-            ? act(() => api(`/admin/dietitians/${encodeURIComponent(confirm.target.id)}`, { method: "DELETE" }), "Dietitian removed.")
-            : act(() => api(`/admin/dietitian-invites/${encodeURIComponent(confirm.target.email)}`, { method: "DELETE" }), "Invitation revoked.")
-        }
+        onConfirm={() => act(() => api(`/admin/dietitian-invites/${encodeURIComponent(confirm.target.email)}`, { method: "DELETE" }), "Invitation revoked.")}
         onCancel={() => setConfirm(null)}
       />
     </>
