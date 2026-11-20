@@ -5,6 +5,7 @@ import { cx } from "@/components/ui";
 
 export const SECTIONS = [
   { id: "overview", label: "Overview" },
+  { id: "chat", label: "Chat" },
   { id: "targets", label: "Targets" },
   { id: "daily-check", label: "Daily check" },
   { id: "diet-plan", label: "Diet plan" },

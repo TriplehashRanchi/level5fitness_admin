@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { ACTIVITY_LABEL, bmi, bmiBand, DIET_LABEL, SEX_LABEL } from "@/lib/body";
 import { deriveStats, lastSevenDays, recentWeekStarts } from "@/lib/client-stats";
 import { dayLabel, fmtTime, todayKey, weekOf } from "@/lib/dates";
+import ClientChat from "@/components/client-chat";
 import ClientDailyCheck from "@/components/client-daily-check";
 import ClientDietPlan, { DayStrip } from "@/components/client-diet-plan";
 import ClientHeader, { ClientHeaderSkeleton } from "@/components/client-header";
@@ -131,6 +132,8 @@ export default function ClientPage() {
         <h3 className="mb-2 mt-8 text-sm font-semibold text-zinc-200">Recent workouts</h3>
         {d ? <RecentWorkouts list={workouts} today={today} /> : <SectionSkeleton rows={2} label="Loading workouts…" />}
       </Section>
+
+      <ClientChat memberId={id} name={d?.client?.name || d?.client?.email} />
 
       <ClientTargets memberId={id} onSaved={reloadWeeks} />
 

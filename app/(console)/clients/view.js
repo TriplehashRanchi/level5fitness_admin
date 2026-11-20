@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useNewChatMessages } from "@/lib/socket";
 import { adherencePercent, fmtKg, GOAL_LABEL } from "@/lib/body";
 import { Count, DataTable, EmptyRow, MeterCell, PersonCell, Pills, SearchBox, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
 import { Alert, Badge, Button, EmptyState, PageHeader, PageSpinner, StatCard } from "@/components/ui";
@@ -39,6 +40,10 @@ export default function ClientsPage() {
   }, [query]);
 
   const { data, latest: last, error, reload } = useApi(`/dietitian/clients${search ? `?q=${encodeURIComponent(search)}` : ""}`);
+  // Unread chat messages per client; brought up to date the moment a client writes.
+  const unreadApi = useApi("/dietitian/chat/unread");
+  useNewChatMessages(unreadApi.reload);
+  const unread = useMemo(() => Object.fromEntries((unreadApi.data?.clients ?? unreadApi.latest?.clients ?? []).map((u) => [u.memberId, u.unread])), [unreadApi.data, unreadApi.latest]);
   // While a new search loads, the rows already on screen stay there.
   const list = data ?? last;
 
@@ -118,7 +123,12 @@ export default function ClientsPage() {
               const href = `/clients/${encodeURIComponent(c.id)}`;
               return (
                 <Tr key={c.id} onOpen={() => router.push(href)}>
-                  <Td><PersonCell name={c.name} email={c.email} image={c.image} href={href} /></Td>
+                  <Td>
+                    <div className="flex items-center gap-3">
+                      <PersonCell name={c.name} email={c.email} image={c.image} href={href} />
+                      {unread[c.id] ? <Badge tone="good">{unread[c.id] > 99 ? "99+" : unread[c.id]} new {unread[c.id] === 1 ? "message" : "messages"}</Badge> : null}
+                    </div>
+                  </Td>
                   <Td><Badge tone={c._s.tone}>{c._s.label}</Badge></Td>
                   <Td><MeterCell percent={c._s.percent} note={c._s.percent == null ? null : `${c.done7}/${c.planned7}`} tone={c._s.bar} label="Plan completion" /></Td>
                   <Td nowrap>{GOAL_LABEL[c.goal] ?? <span className="text-muted">–</span>}</Td>
