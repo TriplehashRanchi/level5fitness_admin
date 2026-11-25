@@ -5,7 +5,7 @@ import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { WEEKDAYS, WEEK_ORDER } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
-import { Count, DataTable, EmptyRow, SearchBox, Pills, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
+import { ListTable, TwoLine } from "@/components/table";
 import { Alert, Badge, Button, Card, CardTitle, cx, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select } from "@/components/ui";
 
 const LEVEL_LABEL = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced", all: "All levels" };
@@ -37,13 +37,30 @@ function WorkoutsTab({ catalog, reload, say }) {
         (!q || [w.title, w.focus, w.coach, w.categoryName].filter(Boolean).join(" ").toLowerCase().includes(q))
     );
   }, [workouts, query, show, category]);
-  const { sorted, column } = useSort(shown, {
-    title: (w) => w.title,
-    category: (w) => w.categoryName,
-    level: (w) => ({ beginner: 0, intermediate: 1, advanced: 2, all: 3 })[w.level],
-    time: (w) => w.durationMin,
-    status: (w) => (w.isActive ? 0 : 1),
-  }, "status");
+  const columns = [
+    { key: "title", header: "Workout", sort: (w) => w.title, cell: (w) => <TwoLine main={w.title} note={[w.focus, w.coach].filter(Boolean).join(" · ") || null} /> },
+    { key: "category", header: "Category", nowrap: true, sort: (w) => w.categoryName, cell: (w) => w.categoryName },
+    { key: "level", header: "Level", nowrap: true, sort: (w) => ({ beginner: 0, intermediate: 1, advanced: 2, all: 3 })[w.level], cell: (w) => LEVEL_LABEL[w.level] },
+    { key: "time", header: "Time", nowrap: true, sort: (w) => w.durationMin, cell: (w) => <TwoLine main={`${w.durationMin} min`} note={`${w.kcalEstimate} kcal`} /> },
+    {
+      key: "status", header: "Status", sort: (w) => (w.isActive ? 0 : 1),
+      cell: (w) => (
+        <div className="flex flex-wrap gap-1">
+          {w.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}
+          {w.isProgram ? <Badge tone="brand">Program</Badge> : null}
+        </div>
+      ),
+    },
+    {
+      key: "actions", header: "Actions", hidden: true, align: "right",
+      cell: (w) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => open(w)}>Edit</Button>
+          <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(w)}>{w.isActive ? "Switch off" : "Switch on"}</Button>
+        </div>
+      ),
+    },
+  ];
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const open = (w) => {
@@ -92,56 +109,27 @@ function WorkoutsTab({ catalog, reload, say }) {
       {workouts.length === 0 ? (
         <EmptyState title="No workouts yet" action={<Button onClick={() => open("new")}>+ New workout</Button>}>Add the first workout for members to see.</EmptyState>
       ) : (
-        <DataTable
+        <ListTable
           label="Workouts"
           minWidth={860}
+          rows={shown}
+          rowKey={(w) => w.id}
+          columns={columns}
+          defaultSort="status"
+          dim={(w) => !w.isActive}
+          search={{ value: query, onChange: setQuery, placeholder: "Search workouts" }}
+          filters={{ options: [{ id: "all", label: "All", count: workouts.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: workouts.length - liveCount }], value: show, onChange: setShow }}
           toolbar={
-            <>
-              <SearchBox value={query} onChange={setQuery} placeholder="Search workouts" />
-              <Pills options={[{ id: "all", label: "All", count: workouts.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: workouts.length - liveCount }]} value={show} onChange={setShow} />
-              <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="!w-auto !rounded-xl !py-2">
-                <option value="">All categories</option>
-                {categories.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-              </Select>
-              <Button className="ml-auto" onClick={() => open("new")}>+ New workout</Button>
-            </>
+            <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="!w-auto !rounded-xl !py-2">
+              <option value="">All categories</option>
+              {categories.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+            </Select>
           }
-          footer={<Count n={sorted.length} of={workouts.length} noun="workout" />}
-        >
-          <THead>
-            <Th sort={column("title")}>Workout</Th>
-            <Th sort={column("category")}>Category</Th>
-            <Th sort={column("level")}>Level</Th>
-            <Th sort={column("time")}>Time</Th>
-            <Th sort={column("status")}>Status</Th>
-            <Th label="Actions" />
-          </THead>
-          <TBody>
-            {sorted.length === 0 ? (
-              <EmptyRow colSpan={6} title="No workouts in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); setCategory(""); }}>Show all workouts</Button>} />
-            ) : null}
-            {sorted.map((w) => (
-              <Tr key={w.id} dim={!w.isActive}>
-                <Td><TwoLine main={w.title} note={[w.focus, w.coach].filter(Boolean).join(" · ") || null} /></Td>
-                <Td nowrap>{w.categoryName}</Td>
-                <Td nowrap>{LEVEL_LABEL[w.level]}</Td>
-                <Td nowrap><TwoLine main={`${w.durationMin} min`} note={`${w.kcalEstimate} kcal`} /></Td>
-                <Td>
-                  <div className="flex flex-wrap gap-1">
-                    {w.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}
-                    {w.isProgram ? <Badge tone="brand">Program</Badge> : null}
-                  </div>
-                </Td>
-                <Td align="right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => open(w)}>Edit</Button>
-                    <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(w)}>{w.isActive ? "Switch off" : "Switch on"}</Button>
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </TBody>
-        </DataTable>
+          action={<Button onClick={() => open("new")}>+ New workout</Button>}
+          noun="workout"
+          total={workouts.length}
+          empty={{ title: "No workouts in this view", action: <Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); setCategory(""); }}>Show all workouts</Button> }}
+        />
       )}
 
       <Modal
@@ -182,11 +170,11 @@ function WorkoutsTab({ catalog, reload, say }) {
           <Field label="Focus (optional)" hint="e.g. Chest, Triceps"><Input value={form.focus} onChange={(e) => set("focus", e.target.value)} maxLength={80} /></Field>
           <Field label="Coach (optional)"><Input value={form.coach} onChange={(e) => set("coach", e.target.value)} maxLength={60} /></Field>
           <label className="flex items-center gap-3 text-sm text-zinc-200">
-            <input type="checkbox" checked={form.isProgram} onChange={(e) => set("isProgram", e.target.checked)} className="h-4 w-4 accent-[#c6f432]" />
+            <input type="checkbox" checked={form.isProgram} onChange={(e) => set("isProgram", e.target.checked)} className="h-4 w-4 accent-[#3ddc68]" />
             Show under “Programs” on Home
           </label>
           <label className="flex items-center gap-3 text-sm text-zinc-200">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-[#c6f432]" />
+            <input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-[#3ddc68]" />
             Visible to members
           </label>
         </form>
@@ -263,20 +251,19 @@ function CategoriesTab({ catalog, reload, say }) {
         <div className="min-w-56 flex-1"><Field label="New category"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pilates" maxLength={40} /></Field></div>
         <Button type="submit" loading={busy} className="mb-[22px]">Add</Button>
       </form>
-      <DataTable label="Categories" minWidth={320} footer={<span>{catalog.categories.length} {catalog.categories.length === 1 ? "category" : "categories"}</span>}>
-        <THead>
-          <Th>Category</Th>
-          <Th align="right">Workouts</Th>
-        </THead>
-        <TBody>
-          {catalog.categories.map((c) => (
-            <Tr key={c.slug}>
-              <Td><span className="font-semibold text-white">{c.name}</span></Td>
-              <Td align="right"><span className="tabular-nums">{counts[c.slug] ?? 0}</span></Td>
-            </Tr>
-          ))}
-        </TBody>
-      </DataTable>
+      <ListTable
+        label="Categories"
+        minWidth={320}
+        rows={catalog.categories}
+        rowKey={(c) => c.slug}
+        columns={[
+          { key: "name", header: "Category", sort: (c) => c.name, cell: (c) => <span className="font-semibold text-white">{c.name}</span> },
+          { key: "workouts", header: "Workouts", align: "right", sort: (c) => counts[c.slug] ?? 0, cell: (c) => <span className="tabular-nums">{counts[c.slug] ?? 0}</span> },
+        ]}
+        noun="category"
+        plural="categories"
+        empty={{ title: "No categories yet", text: "Add the first one above." }}
+      />
     </Card>
   );
 }

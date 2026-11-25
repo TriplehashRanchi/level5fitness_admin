@@ -126,7 +126,7 @@ export function EmptyState({ title, children, action }) {
 export function StatCard({ label, value, hint, tone, icon }) {
   const accent = tone === "brand" ? "text-brand bg-brand/12" : tone === "warn" ? "text-amber-300 bg-amber-400/12" : "text-zinc-300 bg-white/8";
   return (
-    <div className="group rounded-2xl border border-line bg-gradient-to-b from-card to-panel p-5 transition-colors hover:border-white/15">
+    <div className="group rounded-2xl border border-line bg-card p-5 transition-colors hover:border-white/15">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-muted">{label}</p>
         {icon ? <span className={cx("flex h-8 w-8 items-center justify-center rounded-lg", accent)}><ConsoleIcon name={icon} size={16} /></span> : null}
@@ -246,6 +246,50 @@ export function Modal({ open, onClose, title, children, footer, wide = false }) 
           <h2 className="text-lg font-black text-white">{title}</h2>
           <div className="mt-4">{children}</div>
           {footer ? <div className="mt-6 flex justify-end gap-3">{footer}</div> : null}
+        </div>
+      ) : null}
+    </dialog>
+  );
+}
+
+/**
+ * A panel that slides in from the right edge and runs the full height of the screen: for forms that should
+ * not cover the page they belong to. A real <dialog>, so Esc closes it, focus stays inside, and the page
+ * behind is dimmed; a click on the dimmed part closes it too. `footer` is pinned to the bottom of the panel.
+ */
+export function Drawer({ open, onClose, title, subtitle, children, footer }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === ref.current) onClose(); // a click on the dimmed area
+      }}
+      aria-label={title}
+      className="drawer-in fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-none w-full max-w-none rounded-none border-l border-line bg-card p-0 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm sm:w-[30rem] sm:rounded-l-3xl"
+    >
+      {open ? (
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-6 pb-4 pt-5">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-white">{title}</h2>
+              {subtitle ? <p className="mt-1 text-sm leading-5 text-muted">{subtitle}</p> : null}
+            </div>
+            <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/8 text-zinc-200 transition-colors hover:bg-white/15">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </header>
+          <div className="chat-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          {footer ? <footer className="flex shrink-0 items-center gap-3 border-t border-line bg-card px-6 py-4">{footer}</footer> : null}
         </div>
       ) : null}
     </dialog>

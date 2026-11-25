@@ -241,3 +241,105 @@ export function useSort(rows, columns, initialKey, initialDir = "asc") {
   });
   return { sorted, column };
 }
+
+// ── The table every list page uses ───────────────────────────────────────────────────────────
+
+/**
+ * One table for every list in the console. A page describes its data; this draws it the same way
+ * everywhere: toolbar (search, filter pills, anything extra, a button on the right), headings that
+ * sort, rows, "nothing here" with a way back, and a footer with the count and page buttons.
+ *
+ *   rows      what to show (already searched / filtered by the page)
+ *   rowKey    (row) => a stable id
+ *   columns   [{ key, header, cell: (row) => node, sort?: (row) => value, align?, nowrap?, muted?, className? }]
+ *             `header` is the heading (text, or a node such as a checkbox); with `hidden: true` it is
+ *             only read out (for a column of buttons). A column with `sort` sorts when its heading is clicked.
+ *   defaultSort  the key of the column to sort by at first ("-key" for descending)
+ *   search    { value, onChange, placeholder, label }
+ *   filters   { options: [{ id, label, count? }], value, onChange, label }
+ *   toolbar   anything else for the toolbar (a select, a note); `action` sits at its right end
+ *   noun      "member": the footer says "12 members", or "3 of 12 members" when `total` is larger.
+ *             `count` replaces the number of rows (when the server pages the list).
+ *   pagination { page, pages, onPage }
+ *   empty     { title, text, action } for when no row is shown
+ *   onOpen    (row) => …  makes the whole row clickable.  selected / dim: (row) => boolean
+ */
+export function ListTable({
+  label, minWidth, rows, rowKey, columns, defaultSort,
+  search, filters, toolbar, action,
+  noun, plural, total, count, pagination, footer,
+  empty, onOpen, selected, dim, busy = false,
+}) {
+  const readers = useMemo(() => Object.fromEntries(columns.filter((c) => c.sort).map((c) => [c.key, c.sort])), [columns]);
+  const descending = typeof defaultSort === "string" && defaultSort.startsWith("-");
+  const { sorted, column } = useSort(rows, readers, descending ? defaultSort.slice(1) : defaultSort, descending ? "desc" : "asc");
+  const hasToolbar = search || filters || toolbar || action || busy;
+
+  return (
+    <DataTable
+      label={label}
+      minWidth={minWidth}
+      toolbar={
+        hasToolbar ? (
+          <>
+            {search ? <SearchBox value={search.value} onChange={search.onChange} placeholder={search.placeholder} label={search.label} /> : null}
+            {filters ? <Pills options={filters.options} value={filters.value} onChange={filters.onChange} label={filters.label} /> : null}
+            {toolbar}
+            {busy ? <span className="text-xs text-muted" role="status">Loading…</span> : null}
+            {action ? <div className="ml-auto flex items-center gap-2">{action}</div> : null}
+          </>
+        ) : null
+      }
+      footer={
+        noun || pagination || footer ? (
+          <>
+            {noun ? <Count n={count ?? sorted.length} of={total} noun={noun} plural={plural} /> : <span />}
+            {footer}
+            {pagination ? <Pagination {...pagination} /> : null}
+          </>
+        ) : null
+      }
+    >
+      <THead>
+        {columns.map((c) => (
+          <Th key={c.key} align={c.align} className={c.className} sort={c.sort ? column(c.key) : undefined} label={c.hidden ? c.header : undefined}>
+            {c.hidden ? null : c.header}
+          </Th>
+        ))}
+      </THead>
+      <TBody>
+        {sorted.length === 0 ? (
+          <EmptyRow colSpan={columns.length} title={empty?.title ?? "Nothing to show"} action={empty?.action}>{empty?.text}</EmptyRow>
+        ) : null}
+        {sorted.map((row) => (
+          <Tr key={rowKey(row)} onOpen={onOpen ? () => onOpen(row) : undefined} selected={selected?.(row)} dim={dim?.(row)}>
+            {columns.map((c) => (
+              <Td key={c.key} align={c.align} nowrap={c.nowrap} muted={c.muted}>{c.cell(row)}</Td>
+            ))}
+          </Tr>
+        ))}
+      </TBody>
+    </DataTable>
+  );
+}
+
+/** A round icon button for the end of a row (open, remove). `tone="bad"` turns red on hover. */
+export function RowButton({ label, onClick, disabled, tone, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={cx("inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors disabled:opacity-40", tone === "bad" ? "hover:bg-accent/10 hover:text-accent" : "hover:bg-brand/10 hover:text-brand")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The small arrow at the end of a row that opens something. */
+export const Chevron = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+);

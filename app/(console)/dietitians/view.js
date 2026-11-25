@@ -5,7 +5,7 @@ import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { fmtDateTime, timeAgo } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
-import { Count, DataTable, EmptyRow, MeterCell, PersonCell, Pills, SearchBox, TBody, Td, Th, THead, Tr, useSort } from "@/components/table";
+import { ListTable, MeterCell, PersonCell, RowButton } from "@/components/table";
 import { Alert, Button, ConfirmDialog, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select, Switch } from "@/components/ui";
 
 // About how many clients one dietitian looks after. The bar turns amber above this.
@@ -31,12 +31,36 @@ function Dietitians() {
       (d) => (show === "all" || (show === "disabled") === d.disabled) && (!q || `${d.name ?? ""} ${d.email}`.toLowerCase().includes(q))
     );
   }, [data, query, show]);
-  const { sorted, column } = useSort(shown, {
-    name: (d) => d.name || d.email,
-    status: (d) => (d.disabled ? 1 : 0),
-    clients: (d) => d.clients,
-    seen: (d) => (d.lastSeenAt ? -Date.parse(d.lastSeenAt) : null),
-  }, "name");
+  const columns = [
+    { key: "name", header: "Dietitian", sort: (d) => d.name || d.email, cell: (d) => <div className={d.disabled ? "opacity-55" : undefined}><PersonCell name={d.name} email={d.email} image={d.image} /></div> },
+    {
+      key: "clients", header: "Clients", sort: (d) => d.clients,
+      cell: (d) => <MeterCell percent={(d.clients / CLIENT_LIMIT) * 100} text={`${d.clients} / ${CLIENT_LIMIT}`} tone={d.clients > CLIENT_LIMIT ? "bg-warn" : "bg-brand"} label={`${d.clients} clients, of about ${CLIENT_LIMIT}`} />,
+    },
+    { key: "seen", header: "Last seen", muted: true, nowrap: true, sort: (d) => (d.lastSeenAt ? -Date.parse(d.lastSeenAt) : null), cell: (d) => timeAgo(d.lastSeenAt) },
+    {
+      key: "status", header: "Can sign in", sort: (d) => (d.disabled ? 1 : 0),
+      cell: (d) => (
+        <div className="flex items-center gap-3">
+          <Switch checked={!d.disabled} onChange={() => toggle(d)} disabled={busy} label={`${d.name || d.email} can sign in`} />
+          <span className={d.disabled ? "text-xs font-semibold text-accent" : "text-xs text-muted"}>{d.disabled ? "Disabled" : "Active"}</span>
+        </div>
+      ),
+    },
+    {
+      key: "remove", header: "Remove", hidden: true, align: "right",
+      cell: (d) => (
+        <RowButton label={`Remove ${d.name || d.email}`} tone="bad" onClick={() => openRemove(d)} disabled={busy}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
+        </RowButton>
+      ),
+    },
+  ];
+  const inviteColumns = [
+    { key: "email", header: "Email", cell: (i) => <span className="font-semibold text-white">{i.email}</span> },
+    { key: "invited", header: "Invited", muted: true, nowrap: true, cell: (i) => fmtDateTime(i.invitedAt) },
+    { key: "actions", header: "Actions", hidden: true, align: "right", cell: (i) => <Button variant="secondary" size="sm" onClick={() => setConfirm({ kind: "revoke", target: i })} disabled={busy}>Revoke</Button> },
+  ];
 
   const act = async (fn, okText) => {
     setBusy(true);
@@ -133,83 +157,25 @@ function Dietitians() {
           {data.dietitians.length === 0 ? (
             <EmptyState title="No dietitians yet" action={<Button onClick={openInvite}>+ Invite dietitian</Button>}>They appear here after their first sign-in.</EmptyState>
           ) : (
-            <DataTable
+            <ListTable
               label="Dietitians"
               minWidth={680}
-              toolbar={
-                <>
-                  <SearchBox value={query} onChange={setQuery} placeholder="Search by name or email" label="Search dietitians" />
-                  <Pills options={[{ id: "all", label: "All", count: data.dietitians.length }, { id: "active", label: "Active", count: activeCount }, { id: "disabled", label: "Disabled", count: data.dietitians.length - activeCount }]} value={show} onChange={setShow} />
-                </>
-              }
-              footer={<Count n={sorted.length} of={data.dietitians.length} noun="dietitian" />}
-            >
-              <THead>
-                <Th sort={column("name")}>Dietitian</Th>
-                <Th sort={column("clients")}>Clients</Th>
-                <Th sort={column("seen")}>Last seen</Th>
-                <Th sort={column("status")}>Can sign in</Th>
-                <Th label="Remove" />
-              </THead>
-              <TBody>
-                {sorted.length === 0 ? (
-                  <EmptyRow colSpan={5} title="No dietitians in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all</Button>} />
-                ) : null}
-                {sorted.map((d) => (
-                  <Tr key={d.id}>
-                    <Td><div className={d.disabled ? "opacity-55" : undefined}><PersonCell name={d.name} email={d.email} image={d.image} /></div></Td>
-                    <Td>
-                      <MeterCell
-                        percent={(d.clients / CLIENT_LIMIT) * 100}
-                        text={`${d.clients} / ${CLIENT_LIMIT}`}
-                        tone={d.clients > CLIENT_LIMIT ? "bg-warn" : "bg-brand"}
-                        label={`${d.clients} clients, of about ${CLIENT_LIMIT}`}
-                      />
-                    </Td>
-                    <Td muted nowrap>{timeAgo(d.lastSeenAt)}</Td>
-                    <Td>
-                      <div className="flex items-center gap-3">
-                        <Switch checked={!d.disabled} onChange={() => toggle(d)} disabled={busy} label={`${d.name || d.email} can sign in`} />
-                        <span className={d.disabled ? "text-xs font-semibold text-accent" : "text-xs text-muted"}>{d.disabled ? "Disabled" : "Active"}</span>
-                      </div>
-                    </Td>
-                    <Td align="right">
-                      <button
-                        type="button"
-                        onClick={() => openRemove(d)}
-                        disabled={busy}
-                        aria-label={`Remove ${d.name || d.email}`}
-                        title="Remove"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-accent/10 hover:text-accent disabled:opacity-40"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
-                      </button>
-                    </Td>
-                  </Tr>
-                ))}
-              </TBody>
-            </DataTable>
+              rows={shown}
+              rowKey={(d) => d.id}
+              columns={columns}
+              defaultSort="name"
+              search={{ value: query, onChange: setQuery, placeholder: "Search by name or email", label: "Search dietitians" }}
+              filters={{ options: [{ id: "all", label: "All", count: data.dietitians.length }, { id: "active", label: "Active", count: activeCount }, { id: "disabled", label: "Disabled", count: data.dietitians.length - activeCount }], value: show, onChange: setShow }}
+              noun="dietitian"
+              total={data.dietitians.length}
+              empty={{ title: "No dietitians in this view", action: <Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all</Button> }}
+            />
           )}
 
           {data.invites.length === 0 ? null : (
             <>
             <h2 className="mb-3 mt-8 text-base font-semibold text-white">Invited, not signed in yet</h2>
-            <DataTable label="Pending invitations" minWidth={520} footer={<Count n={data.invites.length} noun="invitation" />}>
-              <THead>
-                <Th>Email</Th>
-                <Th>Invited</Th>
-                <Th label="Actions" />
-              </THead>
-              <TBody>
-                {data.invites.map((i) => (
-                  <Tr key={i.email}>
-                    <Td><span className="font-semibold text-white">{i.email}</span></Td>
-                    <Td muted nowrap>{fmtDateTime(i.invitedAt)}</Td>
-                    <Td align="right"><Button variant="secondary" size="sm" onClick={() => setConfirm({ kind: "revoke", target: i })} disabled={busy}>Revoke</Button></Td>
-                  </Tr>
-                ))}
-              </TBody>
-            </DataTable>
+            <ListTable label="Pending invitations" minWidth={520} rows={data.invites} rowKey={(i) => i.email} columns={inviteColumns} noun="invitation" />
             </>
           )}
         </>

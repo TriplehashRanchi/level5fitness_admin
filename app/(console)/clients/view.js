@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
-import { useNewChatMessages } from "@/lib/socket";
+import { useChatInbox } from "@/lib/chat-inbox";
 import { adherencePercent, fmtKg, GOAL_LABEL } from "@/lib/body";
-import { Count, DataTable, EmptyRow, MeterCell, PersonCell, Pills, SearchBox, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
+import GroupPlanDialog from "@/components/group-plan";
+import { Chevron, ListTable, MeterCell, PersonCell, TwoLine } from "@/components/table";
 import { Alert, Badge, Button, EmptyState, PageHeader, PageSpinner, StatCard } from "@/components/ui";
 
 /** Where a client stands this week: no plan, on track (70%+), or behind. */
@@ -31,6 +33,7 @@ export default function ClientsPage() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [adding, setAdding] = useState(false);
   const router = useRouter();
 
   // Search after a short pause in typing.
@@ -41,9 +44,8 @@ export default function ClientsPage() {
 
   const { data, latest: last, error, reload } = useApi(`/dietitian/clients${search ? `?q=${encodeURIComponent(search)}` : ""}`);
   // Unread chat messages per client; brought up to date the moment a client writes.
-  const unreadApi = useApi("/dietitian/chat/unread");
-  useNewChatMessages(unreadApi.reload);
-  const unread = useMemo(() => Object.fromEntries((unreadApi.data?.clients ?? unreadApi.latest?.clients ?? []).map((u) => [u.memberId, u.unread])), [unreadApi.data, unreadApi.latest]);
+  const { conversations } = useChatInbox();
+  const unread = useMemo(() => Object.fromEntries((conversations ?? []).filter((c) => c.kind === "client" && c.unread).map((c) => [c.key, c.unread])), [conversations]);
   // While a new search loads, the rows already on screen stay there.
   const list = data ?? last;
 
@@ -55,21 +57,37 @@ export default function ClientsPage() {
   }, [clients]);
   const shown = useMemo(() => clients.filter((c) => filter === "all" || c._s.key === filter), [clients, filter]);
   // Click a heading to sort. Status goes from "needs attention" to "fine".
-  const { sorted: visible, column } = useSort(shown, {
-    name: (c) => c.name || c.email,
-    status: (c) => ({ noplan: 0, behind: 1, good: 2 })[c._s.key],
-    plan: (c) => c._s.percent,
-    goal: (c) => GOAL_LABEL[c.goal],
-    weight: (c) => c.weightKg,
-    dietitian: (c) => c.dietitianName,
-  }, "name");
+  const hrefOf = (c) => `/clients/${encodeURIComponent(c.id)}`;
+  const columns = [
+    {
+      key: "name", header: "Client", sort: (c) => c.name || c.email,
+      cell: (c) => (
+        <div className="flex items-center gap-3">
+          <PersonCell name={c.name} email={c.email} image={c.image} href={hrefOf(c)} />
+          {unread[c.id] ? (
+            <Link href={`/messages?with=${encodeURIComponent(c.id)}`} className="shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold text-ink hover:bg-brand-dark">
+              {unread[c.id] > 99 ? "99+" : unread[c.id]} new {unread[c.id] === 1 ? "message" : "messages"}
+            </Link>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: "status", header: "Status", sort: (c) => ({ noplan: 0, behind: 1, good: 2 })[c._s.key], cell: (c) => <Badge tone={c._s.tone}>{c._s.label}</Badge> },
+    { key: "plan", header: "Plan, last 7 days", sort: (c) => c._s.percent, cell: (c) => <MeterCell percent={c._s.percent} note={c._s.percent == null ? null : `${c.done7}/${c.planned7}`} tone={c._s.bar} label="Plan completion" /> },
+    { key: "goal", header: "Goal", nowrap: true, sort: (c) => GOAL_LABEL[c.goal], cell: (c) => GOAL_LABEL[c.goal] ?? <span className="text-muted">–</span> },
+    { key: "weight", header: "Weight", nowrap: true, sort: (c) => c.weightKg, cell: (c) => <TwoLine main={fmtKg(c.weightKg)} note={`Target ${fmtKg(c.targetWeightKg)}`} /> },
+    ...(isAdmin ? [{ key: "dietitian", header: "Dietitian", nowrap: true, sort: (c) => c.dietitianName, cell: (c) => c.dietitianName || <span className="text-muted">–</span> }] : []),
+    { key: "open", header: "Open", hidden: true, align: "right", cell: () => <span className="inline-flex text-muted"><Chevron /></span> },
+  ];
 
   return (
     <>
       <PageHeader
         title="Clients"
-        subtitle={isAdmin ? "Everyone assigned to a dietitian, and how their week is going." : "Clients the admin has assigned to you. Open a profile to add diet and exercise plans."}
+        subtitle={isAdmin ? "Everyone assigned to a dietitian, and how their week is going." : "Clients the admin has assigned to you. Open a profile to add diet and exercise plans, or add one meal or workout for several clients at once."}
+        actions={isAdmin ? null : <Button onClick={() => setAdding(true)} disabled={!list || list.clients.length === 0}>+ Add diet or workout</Button>}
       />
+      {adding && list ? <GroupPlanDialog clients={list.clients} onClose={() => setAdding(false)} /> : null}
 
       {error ? <div className="mb-5"><Alert action={<Button variant="secondary" size="sm" onClick={reload}>Retry</Button>}>{messageOf(error)}</Alert></div> : null}
 
@@ -89,57 +107,24 @@ export default function ClientsPage() {
         </EmptyState>
       ) : null}
       {list && (clients.length > 0 || search) ? (
-        <DataTable
+        <ListTable
           label="Clients"
           minWidth={isAdmin ? 980 : 820}
-          toolbar={
-            <>
-              <SearchBox value={query} onChange={setQuery} placeholder="Search by name or email" label="Search clients" />
-              <Pills options={FILTERS.map((f) => ({ ...f, count: counts[f.id] }))} value={filter} onChange={setFilter} label="Filter clients" />
-            </>
-          }
-          footer={<Count n={visible.length} of={clients.length} noun="client" />}
-        >
-          <THead>
-            <Th sort={column("name")}>Client</Th>
-            <Th sort={column("status")}>Status</Th>
-            <Th sort={column("plan")}>Plan, last 7 days</Th>
-            <Th sort={column("goal")}>Goal</Th>
-            <Th sort={column("weight")}>Weight</Th>
-            {isAdmin ? <Th sort={column("dietitian")}>Dietitian</Th> : null}
-            <Th label="Open" />
-          </THead>
-          <TBody>
-            {visible.length === 0 ? (
-              <EmptyRow
-                colSpan={isAdmin ? 7 : 6}
-                title={clients.length === 0 ? "No clients match" : "No clients in this view"}
-                action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setFilter("all"); }}>Show all clients</Button>}
-              >
-                {clients.length === 0 ? "Try another name or email." : null}
-              </EmptyRow>
-            ) : null}
-            {visible.map((c) => {
-              const href = `/clients/${encodeURIComponent(c.id)}`;
-              return (
-                <Tr key={c.id} onOpen={() => router.push(href)}>
-                  <Td>
-                    <div className="flex items-center gap-3">
-                      <PersonCell name={c.name} email={c.email} image={c.image} href={href} />
-                      {unread[c.id] ? <Badge tone="good">{unread[c.id] > 99 ? "99+" : unread[c.id]} new {unread[c.id] === 1 ? "message" : "messages"}</Badge> : null}
-                    </div>
-                  </Td>
-                  <Td><Badge tone={c._s.tone}>{c._s.label}</Badge></Td>
-                  <Td><MeterCell percent={c._s.percent} note={c._s.percent == null ? null : `${c.done7}/${c.planned7}`} tone={c._s.bar} label="Plan completion" /></Td>
-                  <Td nowrap>{GOAL_LABEL[c.goal] ?? <span className="text-muted">–</span>}</Td>
-                  <Td nowrap><TwoLine main={fmtKg(c.weightKg)} note={`Target ${fmtKg(c.targetWeightKg)}`} /></Td>
-                  {isAdmin ? <Td nowrap>{c.dietitianName || <span className="text-muted">–</span>}</Td> : null}
-                  <Td align="right"><span className="text-muted" aria-hidden="true">→</span></Td>
-                </Tr>
-              );
-            })}
-          </TBody>
-        </DataTable>
+          rows={shown}
+          rowKey={(c) => c.id}
+          columns={columns}
+          defaultSort="name"
+          onOpen={(c) => router.push(hrefOf(c))}
+          search={{ value: query, onChange: setQuery, placeholder: "Search by name or email", label: "Search clients" }}
+          filters={{ options: FILTERS.map((f) => ({ ...f, count: counts[f.id] })), value: filter, onChange: setFilter, label: "Filter clients" }}
+          noun="client"
+          total={clients.length}
+          empty={{
+            title: clients.length === 0 ? "No clients match" : "No clients in this view",
+            text: clients.length === 0 ? "Try another name or email." : null,
+            action: <Button variant="secondary" size="sm" onClick={() => { setQuery(""); setFilter("all"); }}>Show all clients</Button>,
+          }}
+        />
       ) : null}
     </>
   );

@@ -5,7 +5,7 @@ import { api, messageOf } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { WEEKDAYS, WEEK_ORDER } from "@/lib/dates";
 import AdminOnly from "@/components/admin-only";
-import { Count, DataTable, EmptyRow, Pills, SearchBox, TBody, Td, Th, THead, Tr, TwoLine, useSort } from "@/components/table";
+import { ListTable, TwoLine } from "@/components/table";
 import { Alert, Badge, Button, cx, EmptyState, Field, Input, Modal, PageHeader, PageSpinner, Select } from "@/components/ui";
 
 const BLANK = { name: "", trainer: "", icon: "bolt", weekdays: [1, 2, 3, 4, 5], startTime: "06:30", durationMin: "45", capacity: "20", isActive: true };
@@ -41,13 +41,22 @@ function Classes() {
       (c) => (show === "all" || (show === "live") === c.isActive) && (!q || `${c.name} ${c.trainer ?? ""}`.toLowerCase().includes(q))
     );
   }, [data, query, show]);
-  const { sorted, column } = useSort(shown, {
-    name: (c) => c.name,
-    days: (c) => c.weekdays.length,
-    time: (c) => c.startTime,
-    places: (c) => c.capacity,
-    status: (c) => (c.isActive ? 0 : 1),
-  }, "time");
+  const columns = [
+    { key: "name", header: "Class", sort: (c) => c.name, cell: (c) => <TwoLine main={c.name} note={c.trainer} /> },
+    { key: "days", header: "Days", nowrap: true, sort: (c) => c.weekdays.length, cell: (c) => daysText(c.weekdays) },
+    { key: "time", header: "Time", nowrap: true, sort: (c) => c.startTime, cell: (c) => <TwoLine main={c.startTime} note={`${c.durationMin} min`} /> },
+    { key: "places", header: "Places", align: "right", sort: (c) => c.capacity, cell: (c) => <span className="tabular-nums">{c.capacity}</span> },
+    { key: "status", header: "Status", sort: (c) => (c.isActive ? 0 : 1), cell: (c) => (c.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>) },
+    {
+      key: "actions", header: "Actions", hidden: true, align: "right",
+      cell: (c) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => open(c)}>Edit</Button>
+          <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(c)}>{c.isActive ? "Switch off" : "Switch on"}</Button>
+        </div>
+      ),
+    },
+  ];
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const open = (c) => {
@@ -97,47 +106,22 @@ function Classes() {
       {!data && !error ? <PageSpinner /> : null}
       {data && data.classes.length === 0 ? <EmptyState title="No classes yet" action={<Button onClick={() => open("new")}>+ New class</Button>}>Add the first class to the timetable.</EmptyState> : null}
       {data && data.classes.length > 0 ? (
-        <DataTable
+        <ListTable
           label="Classes"
           minWidth={820}
-          toolbar={
-            <>
-              <SearchBox value={query} onChange={setQuery} placeholder="Search by class or trainer" label="Search classes" />
-              <Pills options={[{ id: "all", label: "All", count: data.classes.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: data.classes.length - liveCount }]} value={show} onChange={setShow} />
-              <Button className="ml-auto" onClick={() => open("new")}>+ New class</Button>
-            </>
-          }
-          footer={<Count n={sorted.length} of={data.classes.length} noun="class" plural="classes" />}
-        >
-          <THead>
-            <Th sort={column("name")}>Class</Th>
-            <Th sort={column("days")}>Days</Th>
-            <Th sort={column("time")}>Time</Th>
-            <Th sort={column("places")} align="right">Places</Th>
-            <Th sort={column("status")}>Status</Th>
-            <Th label="Actions" />
-          </THead>
-          <TBody>
-            {sorted.length === 0 ? (
-              <EmptyRow colSpan={6} title="No classes in this view" action={<Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all classes</Button>} />
-            ) : null}
-            {sorted.map((c) => (
-              <Tr key={c.id} dim={!c.isActive}>
-                <Td><TwoLine main={c.name} note={c.trainer} /></Td>
-                <Td nowrap>{daysText(c.weekdays)}</Td>
-                <Td nowrap><TwoLine main={c.startTime} note={`${c.durationMin} min`} /></Td>
-                <Td align="right"><span className="tabular-nums">{c.capacity}</span></Td>
-                <Td>{c.isActive ? <Badge tone="good">Live</Badge> : <Badge tone="neutral">Off</Badge>}</Td>
-                <Td align="right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => open(c)}>Edit</Button>
-                    <Button variant="ghost" size="sm" className="w-24" onClick={() => toggle(c)}>{c.isActive ? "Switch off" : "Switch on"}</Button>
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </TBody>
-        </DataTable>
+          rows={shown}
+          rowKey={(c) => c.id}
+          columns={columns}
+          defaultSort="time"
+          dim={(c) => !c.isActive}
+          search={{ value: query, onChange: setQuery, placeholder: "Search by class or trainer", label: "Search classes" }}
+          filters={{ options: [{ id: "all", label: "All", count: data.classes.length }, { id: "live", label: "Live", count: liveCount }, { id: "off", label: "Off", count: data.classes.length - liveCount }], value: show, onChange: setShow }}
+          action={<Button onClick={() => open("new")}>+ New class</Button>}
+          noun="class"
+          plural="classes"
+          total={data.classes.length}
+          empty={{ title: "No classes in this view", action: <Button variant="secondary" size="sm" onClick={() => { setQuery(""); setShow("all"); }}>Show all classes</Button> }}
+        />
       ) : null}
 
       <Modal
@@ -176,7 +160,7 @@ function Classes() {
             </div>
           </fieldset>
           <label className="flex items-center gap-3 text-sm text-zinc-200 sm:col-span-2">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-[#c6f432]" />
+            <input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-[#3ddc68]" />
             Visible to members
           </label>
         </form>

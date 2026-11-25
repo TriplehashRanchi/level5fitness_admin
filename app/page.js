@@ -35,10 +35,10 @@ function WorkspacePreview() {
           <div className={styles.orbitPanel}>
             <svg className={styles.orbit} viewBox="0 0 300 230" fill="none" aria-hidden="true">
               <circle cx="150" cy="115" r="88" stroke="#303930" strokeWidth="1" />
-              <circle cx="150" cy="115" r="68" stroke="#c6f432" strokeWidth="18" strokeDasharray="295 133" transform="rotate(-90 150 115)" />
-              <circle cx="150" cy="115" r="68" stroke="#c6f432" strokeOpacity=".1" strokeWidth="18" />
+              <circle cx="150" cy="115" r="68" stroke="#3ddc68" strokeWidth="18" strokeDasharray="295 133" transform="rotate(-90 150 115)" />
+              <circle cx="150" cy="115" r="68" stroke="#3ddc68" strokeOpacity=".1" strokeWidth="18" />
               <path d="M124 102v26m52-26v26m-61-20v14m70-14v14m-61-7h52" stroke="#f3f5e9" strokeWidth="5" strokeLinecap="round" />
-              <circle cx="150" cy="27" r="4" fill="#c6f432" />
+              <circle cx="150" cy="27" r="4" fill="#3ddc68" />
             </svg>
             <div className={styles.orbitCaption}><span className={styles.miniLabel}>BUILT AROUND YOUR MEMBERS</span><strong>Care. Plan.<br />Progress.</strong><p>Give your team the space<br />to focus on people.</p></div>
           </div>

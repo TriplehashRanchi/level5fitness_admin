@@ -39,13 +39,13 @@ export default function WeightChart({ history, start, current, target }) {
               <text x={W - padX} y={y(target) - 6} fill="#38bdf8" fontSize="12" textAnchor="end">Target {parseFloat(target.toFixed(1))}</text>
             </g>
           ) : null}
-          <polyline points={line} fill="none" stroke="#c6f432" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={line} fill="none" stroke="#3ddc68" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {points.map((p, i) => (
-            <circle key={p.id ?? p.day} cx={x(i)} cy={y(p.weightKg)} r={i === points.length - 1 ? 5 : 3} fill={i === points.length - 1 ? "#c6f432" : "#151b17"} stroke="#c6f432" strokeWidth="2" />
+            <circle key={p.id ?? p.day} cx={x(i)} cy={y(p.weightKg)} r={i === points.length - 1 ? 5 : 3} fill={i === points.length - 1 ? "#3ddc68" : "#151b17"} stroke="#3ddc68" strokeWidth="2" />
           ))}
           <text x={x(0)} y={H - 8} fill="#a1aaa0" fontSize="12" textAnchor="start">{first.day.slice(5).replace("-", "/")}</text>
           <text x={x(points.length - 1)} y={H - 8} fill="#a1aaa0" fontSize="12" textAnchor="end">{last.day.slice(5).replace("-", "/")}</text>
-          <text x={x(points.length - 1)} y={y(last.weightKg) + (y(last.weightKg) < padTop + 14 ? 20 : -10)} fill="#c6f432" fontSize="13" fontWeight="700" textAnchor="end">{parseFloat(last.weightKg.toFixed(1))}</text>
+          <text x={x(points.length - 1)} y={y(last.weightKg) + (y(last.weightKg) < padTop + 14 ? 20 : -10)} fill="#3ddc68" fontSize="13" fontWeight="700" textAnchor="end">{parseFloat(last.weightKg.toFixed(1))}</text>
         </svg>
         <figcaption className="mt-1 text-xs text-muted tabular-nums">
           {change === 0 ? "No change" : `${change > 0 ? "+" : ""}${change} kg`} since {first.day}

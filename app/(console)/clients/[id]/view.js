@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { messageOf } from "@/lib/api";
@@ -13,6 +13,7 @@ import ClientChat from "@/components/client-chat";
 import ClientDailyCheck from "@/components/client-daily-check";
 import ClientDietPlan, { DayStrip } from "@/components/client-diet-plan";
 import ClientHeader, { ClientHeaderSkeleton } from "@/components/client-header";
+import { PLANS_CHANGED } from "@/components/group-plan";
 import ClientOverview from "@/components/client-overview";
 import ClientTargets from "@/components/client-targets";
 import ClientTrainingEditor from "@/components/client-training-editor";
@@ -94,6 +95,21 @@ export default function ClientPage() {
     weekA.reload();
     if (startB) weekB.reload();
   };
+  // A plan added from the clients sidebar (for this client or several): show it here without a reload.
+  const refreshRef = useRef(() => {});
+  useEffect(() => {
+    refreshRef.current = () => {
+      plan.reload();
+      detail.reload();
+      weekA.reload();
+      if (startB) weekB.reload();
+    };
+  });
+  useEffect(() => {
+    const on = () => refreshRef.current();
+    window.addEventListener(PLANS_CHANGED, on);
+    return () => window.removeEventListener(PLANS_CHANGED, on);
+  }, []);
   const { days, targets } = lastSevenDays(today, [weekA.data, weekB.data]);
   const d = detail.data;
   const stats = deriveStats({ today, days, targets, adherence: d?.adherence, ready: !weeksLoading });
@@ -124,7 +140,7 @@ export default function ClientPage() {
 
       {d ? <ClientHeader detail={d} stats={stats} ready={!weeksLoading} /> : <ClientHeaderSkeleton />}
 
-      <SectionNav />
+      <SectionNav skip={isAdmin ? ["chat"] : []} />
 
       <Section id="overview" title="Overview" description="The last 7 days, including today, against the targets.">
         {weeksError ? <div className="mb-4"><SectionError onRetry={reloadWeeks}>{messageOf(weeksError)}</SectionError></div> : null}
@@ -133,7 +149,8 @@ export default function ClientPage() {
         {d ? <RecentWorkouts list={workouts} today={today} /> : <SectionSkeleton rows={2} label="Loading workouts…" />}
       </Section>
 
-      <ClientChat memberId={id} name={d?.client?.name || d?.client?.email} />
+      {/* A client's chat is between them and their dietitian: the admin has no part in it. */}
+      {isAdmin ? null : <ClientChat memberId={id} name={d?.client?.name || d?.client?.email} image={d?.client?.image} />}
 
       <ClientTargets memberId={id} onSaved={reloadWeeks} />
 

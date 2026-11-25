@@ -224,7 +224,7 @@ export default function GlobalSearch({ className, role = "admin" }) {
       </div>
 
       {show ? (
-        <div id={listId} role="listbox" aria-label="Search results" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-panel p-2 shadow-2xl shadow-black/60">
+        <div id={listId} role="listbox" aria-label="Search results" className="absolute inset-x-0 top-full z-40 mt-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-card-2 p-2 shadow-2xl shadow-black/60">
           {text.trim().length < 2 ? (
             <p className="px-3 py-3 text-sm text-muted">Type at least 2 letters.</p>
           ) : waiting ? (

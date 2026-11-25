@@ -15,7 +15,8 @@ export const SECTIONS = [
 ];
 
 /** Sticky pill bar that scrolls to a section and highlights the one being read. */
-export default function SectionNav() {
+export default function SectionNav({ skip = [] }) {
+  const sections = SECTIONS.filter((s) => !skip.includes(s.id));
   const [active, setActive] = useState(SECTIONS[0].id);
   const listRef = useRef(null);
   const locked = useRef(false);
@@ -62,7 +63,7 @@ export default function SectionNav() {
   return (
     <nav aria-label="Client sections" className="sticky top-[var(--bar)] z-20 -mx-4 border-b border-line bg-ink/90 px-4 backdrop-blur sm:-mx-8 sm:px-8 lg:mx-0 lg:rounded-2xl lg:border lg:px-2">
       <ul ref={listRef} className="no-scrollbar flex gap-1.5 overflow-x-auto py-2">
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <li key={s.id} className="shrink-0">
             <a
               href={`#${s.id}`}
