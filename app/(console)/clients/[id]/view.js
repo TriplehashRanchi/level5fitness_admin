@@ -14,7 +14,13 @@ import ClientDailyCheck from "@/components/client-daily-check";
 import ClientDietPlan, { DayStrip } from "@/components/client-diet-plan";
 import ClientHeader, { ClientHeaderSkeleton } from "@/components/client-header";
 import { PLANS_CHANGED } from "@/components/group-plan";
+import ClientJourney from "@/components/client-journey";
+import ClientReadings from "@/components/client-readings";
+import ClientReports from "@/components/client-reports";
+import ClientWeekly from "@/components/client-weekly";
+import ClientMembership from "@/components/client-membership";
 import ClientOverview from "@/components/client-overview";
+import ClientSafety from "@/components/client-safety";
 import ClientTargets from "@/components/client-targets";
 import ClientTrainingEditor from "@/components/client-training-editor";
 import SectionNav from "@/components/section-nav";
@@ -35,8 +41,10 @@ function Row({ label, children }) {
 }
 
 const none = <span className="text-muted">None added</span>;
+const FASTING = { none: "Does not fast", ekadashi: "Ekadashi", ramadan: "Ramadan", weekly: "One day a week", intermittent: "Intermittent fasting", other: "Something else" };
+const LANGUAGE = { en: "English", ml: "Malayalam", ta: "Tamil", kn: "Kannada", te: "Telugu" };
 
-function HealthProfile({ profile: p }) {
+function HealthProfile({ profile: p, client }) {
   const allergies = splitList(p.allergies);
   const value = ok(p.weightKg) && ok(p.heightCm) ? bmi(p.weightKg, p.heightCm) : null;
   const band = value != null ? bmiBand(value) : null;
@@ -46,6 +54,10 @@ function HealthProfile({ profile: p }) {
         {allergies.length ? <ul className="flex flex-wrap gap-2">{allergies.map((a) => <li key={a}><Chip tone="warn">{a}</Chip></li>)}</ul> : none}
       </Row>
       <Row label="Medical notes">{p.medicalNotes ? <p className="whitespace-pre-line leading-6">{p.medicalNotes}</p> : none}</Row>
+      <Row label="App language">{LANGUAGE[client?.language] ?? <span className="text-muted">Not chosen yet</span>}</Row>
+      <Row label="Time zone">{client?.timeZone ?? <span className="text-muted">Not known</span>}</Row>
+      <Row label="Fasting">{FASTING[p.fasting] ?? <span className="text-muted">Not answered</span>}</Row>
+      <Row label="Night shifts">{p.shiftWork == null ? <span className="text-muted">Not answered</span> : p.shiftWork ? "Yes" : "No"}</Row>
       <Row label="Activity level">{ACTIVITY_LABEL[p.activityLevel] ?? <span className="text-muted">–</span>}</Row>
       <Row label="Food preference">{DIET_LABEL[p.dietType] ?? <span className="text-muted">–</span>}</Row>
       <Row label="Sex">{SEX_LABEL[p.sex] ?? <span className="text-muted">–</span>}</Row>
@@ -149,12 +161,20 @@ export default function ClientPage() {
         {d ? <RecentWorkouts list={workouts} today={today} /> : <SectionSkeleton rows={2} label="Loading workouts…" />}
       </Section>
 
+      {d ? <ClientJourney memberId={id} lifecycle={d.lifecycle ?? null} onChanged={detail.reload} /> : null}
+
+      {d ? <ClientMembership memberId={id} membership={d.membership ?? null} onChanged={detail.reload} /> : null}
+
+      {d ? <ClientSafety memberId={id} profile={profile} pause={d.pause ?? null} withheld={!!d.healthWithheld} onChanged={detail.reload} /> : null}
+
       {/* A client's chat is between them and their dietitian: the admin has no part in it. */}
       {isAdmin ? null : <ClientChat memberId={id} name={d?.client?.name || d?.client?.email} image={d?.client?.image} />}
 
       <ClientTargets memberId={id} onSaved={reloadWeeks} />
 
       <ClientDailyCheck memberId={id} refreshToken={0} />
+
+      <ClientWeekly memberId={id} />
 
       <Section
         id="diet-plan"
@@ -164,7 +184,7 @@ export default function ClientPage() {
         <div className="mb-5">
           <DayStrip day={day} setDay={setDay} week={week} today={today} summary={plan.data?.week ?? []} />
         </div>
-        <ClientDietPlan id={id} day={day} today={today} plan={plan} onChanged={refreshAll} />
+        <ClientDietPlan id={id} day={day} today={today} plan={plan} onChanged={refreshAll} language={d?.client?.language} />
       </Section>
 
       <ClientTrainingEditor
@@ -177,9 +197,13 @@ export default function ClientPage() {
         {!d ? <Skeleton className="h-64 w-full" /> : <WeightChart history={history} start={profile.startWeightKg} current={profile.weightKg} target={profile.targetWeightKg} />}
       </Section>
 
+      <ClientReadings memberId={id} />
+
       <Section id="health" title="Health profile" description="Read-only details from the client's profile. Keep these in mind when planning meals and workouts.">
-        {!d ? <SectionSkeleton rows={4} label="Loading the health profile…" /> : <HealthProfile profile={profile} />}
+        {!d ? <SectionSkeleton rows={4} label="Loading the health profile…" /> : <HealthProfile profile={profile} client={d?.client} />}
       </Section>
+
+      <ClientReports memberId={id} />
     </div>
   );
 }

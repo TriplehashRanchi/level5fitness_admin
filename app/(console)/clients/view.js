@@ -9,6 +9,7 @@ import { useApi } from "@/lib/use-api";
 import { useChatInbox } from "@/lib/chat-inbox";
 import { adherencePercent, fmtKg, GOAL_LABEL } from "@/lib/body";
 import GroupPlanDialog from "@/components/group-plan";
+import { STAGES } from "@/lib/cases";
 import { Chevron, ListTable, MeterCell, PersonCell, TwoLine } from "@/components/table";
 import { Alert, Badge, Button, EmptyState, PageHeader, PageSpinner, StatCard } from "@/components/ui";
 
@@ -72,7 +73,25 @@ export default function ClientsPage() {
         </div>
       ),
     },
-    { key: "status", header: "Status", sort: (c) => ({ noplan: 0, behind: 1, good: 2 })[c._s.key], cell: (c) => <Badge tone={c._s.tone}>{c._s.label}</Badge> },
+    {
+      key: "status", header: "Status", sort: (c) => ({ noplan: 0, behind: 1, good: 2 })[c._s.key],
+      cell: (c) => (
+        <div className="flex flex-wrap gap-1.5">
+          <Badge tone={c._s.tone}>{c._s.label}</Badge>
+          {c.pauseStatus ? <Badge tone="warn">{c.pauseStatus === "restart_requested" ? "Ready to restart" : "Paused"}</Badge> : null}
+          {c.needsReview ? <Badge tone="warn">Review health</Badge> : null}
+        </div>
+      ),
+    },
+    {
+      key: "stage", header: "Stage", nowrap: true, sort: (c) => c.lifecycle ?? "",
+      cell: (c) => (c.lifecycle && STAGES[c.lifecycle] ? (
+        <div className="flex items-center gap-1.5">
+          <Badge tone={STAGES[c.lifecycle].tone}>{STAGES[c.lifecycle].label}</Badge>
+          {c.openCases ? <Badge tone="warn">{c.openCases} {c.openCases === 1 ? "case" : "cases"}</Badge> : null}
+        </div>
+      ) : <span className="text-muted">–</span>),
+    },
     { key: "plan", header: "Plan, last 7 days", sort: (c) => c._s.percent, cell: (c) => <MeterCell percent={c._s.percent} note={c._s.percent == null ? null : `${c.done7}/${c.planned7}`} tone={c._s.bar} label="Plan completion" /> },
     { key: "goal", header: "Goal", nowrap: true, sort: (c) => GOAL_LABEL[c.goal], cell: (c) => GOAL_LABEL[c.goal] ?? <span className="text-muted">–</span> },
     { key: "weight", header: "Weight", nowrap: true, sort: (c) => c.weightKg, cell: (c) => <TwoLine main={fmtKg(c.weightKg)} note={`Target ${fmtKg(c.targetWeightKg)}`} /> },
@@ -109,7 +128,7 @@ export default function ClientsPage() {
       {list && (clients.length > 0 || search) ? (
         <ListTable
           label="Clients"
-          minWidth={isAdmin ? 980 : 820}
+          minWidth={isAdmin ? 1100 : 940}
           rows={shown}
           rowKey={(c) => c.id}
           columns={columns}

@@ -5,13 +5,19 @@ import { cx } from "@/components/ui";
 
 export const SECTIONS = [
   { id: "overview", label: "Overview" },
+  { id: "journey", label: "Journey" },
+  { id: "membership", label: "Membership" },
+  { id: "safety", label: "Safety" },
   { id: "chat", label: "Chat" },
   { id: "targets", label: "Targets" },
   { id: "daily-check", label: "Daily check" },
+  { id: "weekly", label: "Week" },
   { id: "diet-plan", label: "Diet plan" },
   { id: "exercise", label: "Exercise" },
   { id: "progress", label: "Progress" },
+  { id: "readings", label: "Readings" },
   { id: "health", label: "Health" },
+  { id: "reports", label: "Reports" },
 ];
 
 /** Sticky pill bar that scrolls to a section and highlights the one being read. */

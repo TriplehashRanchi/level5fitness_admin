@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, messageOf } from "@/lib/api";
 import { SLOT_LABEL, SLOTS } from "@/lib/body";
 import { addDays, dayLabel, dayNumber, fmtTime, fullDate, weekdayShort } from "@/lib/dates";
+import FoodHelper from "@/components/food-helper";
 import { Alert, Badge, Button, ConfirmDialog, cx, Empty, Field, Input, Modal, SectionError, SectionSkeleton, Select, Textarea } from "@/components/ui";
 
 /** Week strip used by both the diet plan and the exercise plan to pick the day. */
@@ -41,7 +42,7 @@ export function DayStrip({ day, setDay, week, today, summary = [] }) {
 const EMPTY_FORM = { mealSlot: "breakfast", title: "", details: "", calories: "" };
 
 /** The diet plan editor for one day: list by meal, add, remove, copy the previous day. */
-export default function ClientDietPlan({ id, day, today, plan, onChanged }) {
+export default function ClientDietPlan({ id, day, today, plan, onChanged, language }) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState(null);
@@ -182,6 +183,7 @@ export default function ClientDietPlan({ id, day, today, plan, onChanged }) {
               {SLOTS.map((s) => <option key={s} value={s}>{SLOT_LABEL[s]}</option>)}
             </Select>
           </Field>
+          <FoodHelper preferred={language} onPick={(p) => setForm((f) => ({ ...f, ...p }))} />
           <Field label="What to eat">
             <Input value={form.title} onChange={(e) => set("title", e.target.value)} maxLength={100} placeholder="e.g. Oats with fruit" autoFocus />
           </Field>

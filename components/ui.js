@@ -103,6 +103,7 @@ export function Alert({ tone = "bad", children, action }) {
   const styles = {
     bad: "border-accent/40 bg-accent/10",
     good: "border-brand/40 bg-brand/10",
+    warn: "border-warn/40 bg-warn/10",
     info: "border-line bg-card-2",
   };
   return (

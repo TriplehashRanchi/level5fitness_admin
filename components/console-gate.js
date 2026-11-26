@@ -13,14 +13,20 @@ import { Alert, Avatar, Badge, Button, cx, PageSpinner } from "@/components/ui";
 // The menu, in the groups it is shown in.
 const NAV = [
   { href: "/dashboard", label: "Dashboard", group: "Overview", roles: ["admin", "dietitian"], icon: "M3 12l9-9 9 9M5 10v10h14V10" },
+  { href: "/metrics", label: "Metrics", group: "Overview", roles: ["admin"], icon: "M4 20V10M10 20V4M16 20v-7M22 20H2" },
   { href: "/messages", label: "Messages", group: "Overview", roles: ["admin", "dietitian"], unread: true, icon: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" },
+  { href: "/cases", label: "Cases", group: "People", roles: ["admin", "dietitian"], icon: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" },
+  { href: "/sessions", label: "Calls and sessions", group: "People", roles: ["admin", "dietitian"], icon: "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" },
   { href: "/clients", label: "Clients", group: "People", roles: ["admin", "dietitian"], icon: "M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0" },
   { href: "/plans", label: "Plans", group: "People", roles: ["dietitian"], icon: "M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3M9 2h6v4H9zM7 11l2 2 4-4M7 17h10" },
   { href: "/members", label: "Members", group: "People", roles: ["admin"], icon: "M17 20h5v-2a4 4 0 0 0-5-3.9M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" },
   { href: "/dietitians", label: "Dietitians", group: "People", roles: ["admin"], icon: "M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" },
   { href: "/workouts", label: "Workouts", group: "Gym", roles: ["admin"], icon: "M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12" },
   { href: "/classes", label: "Classes", group: "Gym", roles: ["admin"], icon: "M8 2v4M16 2v4M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" },
-  { href: "/claims", label: "Prize claims", group: "Gym", roles: ["admin"], icon: "M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" },
+  { href: "/foods", label: "Food library", group: "Gym", roles: ["admin"], icon: "M3 11h18M5 11a7 7 0 0 1 14 0M4 15h16l-1 4H5z" },
+  { href: "/community", label: "Community", group: "Gym", roles: ["admin"], icon: "M17 20h5v-2a4 4 0 0 0-5-3.9M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" },
+  { href: "/memberships", label: "Memberships", group: "Gym", roles: ["admin"], icon: "M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2z" },
+  { href: "/access-log", label: "Access log", group: "Safety", roles: ["admin"], icon: "M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6zM9 12l2 2 4-4" },
 ];
 
 function Icon({ d }) {

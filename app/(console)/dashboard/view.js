@@ -437,8 +437,8 @@ function QuickAction({ href, icon, label, primary }) {
   );
 }
 
-/** The green block: the gym's 90-day challenge, the thing that keeps members coming back. */
-function ChallengeCard({ pending }) {
+/** The green block: the 90-day habit challenge and the group missions, the things that keep members coming back. */
+function ChallengeCard() {
   return (
     <section className="relative flex min-h-[220px] min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-brand/30 bg-gradient-to-br from-[#0f3d1f] via-[#0a2614] to-black p-6">
       <svg className="pointer-events-none absolute -right-10 -top-10 text-brand" width="240" height="240" viewBox="0 0 240 240" fill="none" stroke="currentColor" aria-hidden="true">
@@ -446,10 +446,10 @@ function ChallengeCard({ pending }) {
       </svg>
       <div className="relative">
         <h2 className="text-xl font-semibold leading-tight text-white">Member<br />engagement</h2>
-        <p className="mt-2 max-w-[15rem] text-sm leading-6 text-zinc-300">The 90-day challenge keeps members coming back. {pending ? `${pending} prize claim${pending === 1 ? " is" : "s are"} waiting for you.` : "See who has finished it."}</p>
+        <p className="mt-2 max-w-[15rem] text-sm leading-6 text-zinc-300">The 90-day habit challenge and group missions keep members coming back.</p>
       </div>
-      <Link href="/claims" className="relative mt-5 inline-flex w-fit items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-brand-dark">
-        Prize claims <Icon name="arrow" size={15} />
+      <Link href="/community" className="relative mt-5 inline-flex w-fit items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-brand-dark">
+        Community <Icon name="arrow" size={15} />
       </Link>
     </section>
   );
@@ -493,7 +493,7 @@ function AdminDashboard() {
 
   const tasks = o ? [
     o.unassignedClients ? { href: "/members", tone: "bad", icon: "alert", title: `${o.unassignedClients} member${o.unassignedClients === 1 ? "" : "s"} without a dietitian`, detail: "They share their profile and are waiting" } : null,
-    data.pendingClaims ? { href: "/claims", tone: "warn", icon: "trophy", title: `${data.pendingClaims} prize claim${data.pendingClaims === 1 ? "" : "s"} to review`, detail: "Check the photos, then approve and pay" } : null,
+    data.openCases ? { href: "/cases", tone: data.escalatedCases ? "bad" : "warn", icon: "alert", title: `${data.openCases} case${data.openCases === 1 ? "" : "s"} need a person${data.escalatedCases ? ` (${data.escalatedCases} escalated)` : ""}`, detail: "Clients who went quiet or fell behind" } : null,
     o.pendingInvites ? { href: "/dietitians", tone: "warn", icon: "alert", title: `${o.pendingInvites} invitation${o.pendingInvites === 1 ? "" : "s"} not accepted yet`, detail: "Invited dietitians who have not signed in" } : null,
     unread ? { href: "/messages", tone: "good", icon: "chat", title: `${unread} unread message${unread === 1 ? "" : "s"}`, detail: waiting.map((c) => c.name).slice(0, 3).join(", ") || "From your dietitians" } : null,
   ].filter(Boolean) : [];
@@ -538,7 +538,7 @@ function AdminDashboard() {
               </div>
             </Panel>
 
-            <ChallengeCard pending={data.pendingClaims} />
+            <ChallengeCard />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.5fr_1fr_0.85fr]">
@@ -590,7 +590,7 @@ function AdminDashboard() {
               <PanelTitle id="tasks-title" icon="bell">
                 <span className="flex items-center gap-2">Alerts &amp; tasks{tasks.length ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-white">{tasks.length}</span> : null}</span>
               </PanelTitle>
-              {tasks.length === 0 ? <Nothing>Nothing is waiting for you. Assignments, invitations, claims and messages are all up to date.</Nothing> : <ul className="space-y-2.5">{tasks.map((t) => <TaskRow key={t.title} {...t} />)}</ul>}
+              {tasks.length === 0 ? <Nothing>Nothing is waiting for you. Assignments, invitations and messages are all up to date.</Nothing> : <ul className="space-y-2.5">{tasks.map((t) => <TaskRow key={t.title} {...t} />)}</ul>}
             </Panel>
 
             <Panel aria-labelledby="recent-title">

@@ -29,6 +29,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  // Two-step sign-in: shown after a correct password when the server asks for the authenticator code.
+  const [needsCode, setNeedsCode] = useState(false);
+  const [adminCode, setAdminCode] = useState("");
 
   useEffect(() => {
     if (status === "ready") router.replace("/dashboard");
@@ -113,7 +116,14 @@ export default function LoginPage() {
                   className="space-y-3"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    run(() => signInAsAdmin(adminEmail, adminPassword));
+                    run(async () => {
+                      const result = await signInAsAdmin(adminEmail, adminPassword, needsCode ? adminCode : undefined);
+                      if (result?.needsCode) {
+                        setNeedsCode(true);
+                        return needsCode ? result.message : null;
+                      }
+                      return result;
+                    });
                   }}
                 >
                   <Field label="Admin email">
@@ -122,6 +132,11 @@ export default function LoginPage() {
                   <Field label="Admin password">
                     <Input type="password" autoComplete="current-password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required />
                   </Field>
+                  {needsCode ? (
+                    <Field label="Authenticator code" hint="The 6-digit code from your authenticator app">
+                      <Input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} value={adminCode} onChange={(e) => setAdminCode(e.target.value)} required autoFocus />
+                    </Field>
+                  ) : null}
                   <Button type="submit" variant="secondary" className="w-full" loading={busy}>
                     Sign in as admin
                   </Button>
