@@ -7,20 +7,29 @@ import { Avatar, Button, cx } from "@/components/ui";
 // One table for every list in the console: the same frame, header, row height, hover, sorting,
 // search box, filter pills and page buttons, so each page works the same way.
 
+// The list is not a card: it runs the whole width, from the sidebar to the edge of the window. It steps out of
+// the page's side padding (see <main> in console-gate.js), and its first and last columns, toolbar and footer
+// keep that padding, so their text lines up with the page title.
+const BLEED = "-mx-4 sm:-mx-8 lg:-mx-10";
+const GUTTER = "px-4 sm:px-8 lg:px-10";
+const EDGE_CELLS =
+  "[&_tr>*:first-child]:pl-4 [&_tr>*:last-child]:pr-4 sm:[&_tr>*:first-child]:pl-8 sm:[&_tr>*:last-child]:pr-8 lg:[&_tr>*:first-child]:pl-10 lg:[&_tr>*:last-child]:pr-10";
+
 /**
  * The frame: an optional toolbar on top (search, filters, a button), the table in the middle
  * (it scrolls sideways on a narrow screen), and an optional footer (count, page buttons).
+ * `data-list` tells the page to give it the full width.
  */
 export function DataTable({ label, minWidth = 720, toolbar, footer, children }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-card">
-      {toolbar ? <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">{toolbar}</div> : null}
+    <div data-list className={cx("border-y border-line", BLEED)}>
+      {toolbar ? <div className={cx("flex flex-wrap items-center gap-3 border-b border-line py-4", GUTTER)}>{toolbar}</div> : null}
       <div className="overflow-x-auto">
-        <table aria-label={label} className="w-full border-collapse text-left text-sm" style={{ minWidth }}>
+        <table aria-label={label} className={cx("w-full border-collapse text-left text-sm", EDGE_CELLS)} style={{ minWidth }}>
           {children}
         </table>
       </div>
-      {footer ? <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3.5 text-xs text-muted">{footer}</div> : null}
+      {footer ? <div className={cx("flex flex-wrap items-center justify-between gap-3 border-t border-line py-3.5 text-xs text-muted", GUTTER)}>{footer}</div> : null}
     </div>
   );
 }

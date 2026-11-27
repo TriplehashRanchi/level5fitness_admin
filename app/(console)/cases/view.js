@@ -68,7 +68,7 @@ export default function CasesPage() {
       {list.error ? <div className="mb-5"><Alert action={<Button variant="secondary" size="sm" onClick={list.reload}>Retry</Button>}>{messageOf(list.error)}</Alert></div> : null}
 
       {stats ? (
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
           <StatCard label="Open cases" value={stats.open} tone={stats.open ? "warn" : undefined} />
           <StatCard label="Overdue" value={stats.overdue} tone={stats.overdue ? "warn" : undefined} hint="Nobody has been in touch yet" />
           <StatCard label="Escalated" value={stats.escalated} hint="Waiting for the admin" />

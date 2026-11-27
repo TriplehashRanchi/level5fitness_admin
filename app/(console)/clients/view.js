@@ -111,7 +111,7 @@ export default function ClientsPage() {
       {error ? <div className="mb-5"><Alert action={<Button variant="secondary" size="sm" onClick={reload}>Retry</Button>}>{messageOf(error)}</Alert></div> : null}
 
       {list ? (
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
           <StatCard label="Total clients" value={counts.all} />
           <StatCard label="On track" value={counts.good} tone="brand" hint="70%+ of plan done" />
           <StatCard label="Falling behind" value={counts.behind} hint="Under 70% of plan done" />

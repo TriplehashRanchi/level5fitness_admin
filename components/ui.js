@@ -124,16 +124,17 @@ export function EmptyState({ title, children, action }) {
   );
 }
 
+/** A small figure: its name, the number, and a short note under it. */
 export function StatCard({ label, value, hint, tone, icon }) {
   const accent = tone === "brand" ? "text-brand bg-brand/12" : tone === "warn" ? "text-amber-300 bg-amber-400/12" : "text-zinc-300 bg-white/8";
   return (
-    <div className="group rounded-2xl border border-line bg-card p-5 transition-colors hover:border-white/15">
-      <div className="flex items-center justify-between gap-3">
+    <div className="rounded-xl border border-line bg-card px-3.5 py-2.5 sm:w-48">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted">{label}</p>
-        {icon ? <span className={cx("flex h-8 w-8 items-center justify-center rounded-lg", accent)}><ConsoleIcon name={icon} size={16} /></span> : null}
+        {icon ? <span className={cx("flex h-6 w-6 items-center justify-center rounded-md", accent)}><ConsoleIcon name={icon} size={13} /></span> : null}
       </div>
-      <p className={cx("mt-3 text-4xl font-semibold tracking-tight tabular-nums", tone === "brand" ? "text-brand" : tone === "warn" ? "text-amber-300" : "text-white")}>{value}</p>
-      {hint ? <p className="mt-2 border-t border-line pt-3 text-xs leading-5 text-muted">{hint}</p> : null}
+      <p className={cx("mt-0.5 text-xl font-semibold tabular-nums", tone === "brand" ? "text-brand" : tone === "warn" ? "text-amber-300" : "text-white")}>{value}</p>
+      {hint ? <p className="mt-0.5 text-[11px] leading-4 text-muted">{hint}</p> : null}
     </div>
   );
 }

@@ -25,6 +25,7 @@ const NAV = [
   { href: "/classes", label: "Classes", group: "Gym", roles: ["admin"], icon: "M8 2v4M16 2v4M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" },
   { href: "/foods", label: "Food library", group: "Gym", roles: ["admin"], icon: "M3 11h18M5 11a7 7 0 0 1 14 0M4 15h16l-1 4H5z" },
   { href: "/community", label: "Community", group: "Gym", roles: ["admin"], icon: "M17 20h5v-2a4 4 0 0 0-5-3.9M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" },
+  { href: "/stories", label: "Testimonials", group: "Gym", roles: ["admin"], icon: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5" },
   { href: "/memberships", label: "Memberships", group: "Gym", roles: ["admin"], icon: "M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2z" },
   { href: "/access-log", label: "Access log", group: "Safety", roles: ["admin"], icon: "M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6zM9 12l2 2 4-4" },
 ];
@@ -282,8 +283,9 @@ function Shell({ staff, children }) {
 
         <div className={rail ? "xl:grid xl:grid-cols-[300px_minmax(0,1fr)]" : undefined}>
           {rail ? <ClientsRail /> : null}
-          <main id="console-main" className={cx("min-w-0", bleed ? "" : "px-4 py-6 sm:px-8 sm:py-8 lg:px-10")}>
-            {bleed ? children : <div className={cx("mx-auto", ["/dashboard", "/plans"].includes(pathname) ? "max-w-[1560px]" : "max-w-6xl")}>{children}</div>}
+          {/* The dashboard sits close to the sidebar. */}
+          <main id="console-main" className={cx("min-w-0", bleed ? "" : "px-4 py-6 sm:px-8 sm:py-8 lg:px-10", pathname === "/dashboard" && "sm:pl-4 lg:pl-4")}>
+            {bleed ? children : <div className={cx(pathname === "/dashboard" ? "" : "mx-auto", ["/dashboard", "/plans"].includes(pathname) ? "max-w-[1560px]" : "max-w-6xl has-[[data-list]]:max-w-none")}>{children}</div>}
           </main>
         </div>
       </div>
